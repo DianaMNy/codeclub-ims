@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Secret keys - NEVER share
+.env
+
+# Seed files - not needed in production
+seed.js
+RPF_2026_Database-Diana.xlsx
+
+# System files
+.DS_Store
+Thumbs.db
