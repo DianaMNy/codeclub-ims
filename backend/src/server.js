@@ -19,7 +19,7 @@ app.use(express.json());
 
 // Allow frontend to connect
 app.use(cors({
- origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://codeclub-ims.vercel.app'],
   credentials: true,
 }));
 
