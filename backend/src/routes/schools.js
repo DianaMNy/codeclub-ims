@@ -101,7 +101,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Create school error:', err.message);
-    res.status(500).json({ error: 'Failed to create school' });
+   res.status(500).json({ error: err.message });
   }
 });
 
