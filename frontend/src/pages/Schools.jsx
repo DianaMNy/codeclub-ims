@@ -133,6 +133,7 @@ export default function Schools() {
       if (filterCounty && s.county !== filterCounty) return false;
       if (filterStatus && s.status !== filterStatus) return false;
       if (filterMentor && s.mentor_name !== filterMentor) return false;
+      if (filterType && s.type !== filterType) return false;
       if (search && !s.official_name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     })
@@ -148,6 +149,7 @@ export default function Schools() {
   const centres = schools.filter(s => s.type === 'community_centre').length;
   const totalLearners = schools.reduce((sum, s) => sum + (s.learner_count || 0), 0);
   const mentorNames = [...new Set(schools.map(s => s.mentor_name).filter(Boolean))].sort();
+  const [filterType, setFilterType] = useState('');
 
   const exportCSV = () => {
     const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','Learners','Status','Enrolled','Cohort','Guidelines'];
@@ -211,13 +213,23 @@ export default function Schools() {
             <option value="active">Active</option>
             <option value="enrolled">Not Started</option>
           </select>
-          <select style={styles.select} value={filterMentor} onChange={e=>setFilterMentor(e.target.value)}>
-            <option value="">All Mentors</option>
-            {mentorNames.map(m=><option key={m} value={m}>{m}</option>)}
-          </select>
-          {(filterCounty||filterStatus||filterMentor||search) && (
-            <button style={styles.clearBtn} onClick={()=>{setFilterCounty('');setFilterStatus('');setFilterMentor('');setSearch('');}}>✕ Clear</button>
-          )}
+          <select style={styles.select} value={filterType} onChange={e=>setFilterType(e.target.value)}>
+  <option value="">All Types</option>
+  <option value="school">Schools Only</option>
+  <option value="community_centre">Centres Only</option>
+</select>
+       <select style={styles.select} value={filterMentor} onChange={e=>setFilterMentor(e.target.value)}>
+  <option value="">All Mentors</option>
+  {mentorNames.map(m=><option key={m} value={m}>{m}</option>)}
+</select>
+<select style={styles.select} value={filterType} onChange={e=>setFilterType(e.target.value)}>
+  <option value="">All Types</option>
+  <option value="school">Schools Only</option>
+  <option value="community_centre">Centres Only</option>
+</select>
+{(filterCounty||filterStatus||filterMentor||search||filterType) && (
+  <button style={styles.clearBtn} onClick={()=>{setFilterCounty('');setFilterStatus('');setFilterMentor('');setSearch('');setFilterType('');}}>✕ Clear</button>
+)}
         </div>
         <div style={styles.actions}>
           <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
