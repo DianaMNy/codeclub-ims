@@ -94,9 +94,9 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
   RETURNING *
 `, [club_id, official_name, type, county, subcounty_area,
-    referral_source, club_leader_name, club_leader_phone, club_leader_email,
-    safeguarding_sponsor, sponsor_phone, learner_count, status,
-    guidelines_signed, notes, mentor_id, enrollment_date, cohort]);
+ referral_source, club_leader_name, club_leader_phone, club_leader_email,
+ safeguarding_sponsor, sponsor_phone, learner_count, status,
+ guidelines_signed, notes, mentor_id, enrollment_date || null, cohort]);
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -127,7 +127,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
 `, [club_id, official_name, type, county, subcounty_area,
     referral_source, club_leader_name, club_leader_phone, club_leader_email,
     safeguarding_sponsor, sponsor_phone, learner_count, status,
-    guidelines_signed, notes, mentor_id, enrollment_date, cohort, req.params.id]);
+    guidelines_signed, notes, mentor_id, enrollment_date || null, cohort, req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'School not found' });
