@@ -22,7 +22,8 @@ const EMPTY_FORM = {
   subcounty_area:'', referral_source:'', club_leader_name:'',
   club_leader_phone:'', club_leader_email:'', safeguarding_sponsor:'',
   sponsor_phone:'', learner_count:0, status:'enrolled',
-  guidelines_signed:false, notes:'', mentor_id:''
+  guidelines_signed:false, notes:'', mentor_id:'',
+  enrollment_date:'', cohort:'RPF 2026'
 };
 
 export default function Schools() {
@@ -32,11 +33,14 @@ export default function Schools() {
   const [filterCounty, setFilterCounty] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMentor, setFilterMentor] = useState('');
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingSchool, setEditingSchool] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [sortKey, setSortKey] = useState('official_name');
+  const [sortDir, setSortDir] = useState('asc');
 
   const fetchData = () => {
     setLoading(true);
@@ -47,6 +51,11 @@ export default function Schools() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   const openEnrol = () => {
     setEditingSchool(null);
@@ -73,6 +82,8 @@ export default function Schools() {
       guidelines_signed: school.guidelines_signed || false,
       notes: school.notes || '',
       mentor_id: school.mentor_id || '',
+      enrollment_date: school.enrollment_date ? school.enrollment_date.split('T')[0] : '',
+      cohort: school.cohort || 'RPF 2026',
     });
     setShowModal(true);
   };
@@ -104,12 +115,19 @@ export default function Schools() {
     }
   };
 
-  const filtered = schools.filter(s => {
-    if (filterCounty && s.county !== filterCounty) return false;
-    if (filterStatus && s.status !== filterStatus) return false;
-    if (filterMentor && s.mentor_name !== filterMentor) return false;
-    return true;
-  });
+  const filtered = schools
+    .filter(s => {
+      if (filterCounty && s.county !== filterCounty) return false;
+      if (filterStatus && s.status !== filterStatus) return false;
+      if (filterMentor && s.mentor_name !== filterMentor) return false;
+      if (search && !s.official_name.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const av = a[sortKey] || '';
+      const bv = b[sortKey] || '';
+      return sortDir === 'asc' ? av > bv ? 1 : -1 : av < bv ? 1 : -1;
+    });
 
   const schoolsOnly = schools.filter(s => s.type === 'school');
   const active = schools.filter(s => s.status === 'active').length;
@@ -119,11 +137,13 @@ export default function Schools() {
   const mentorNames = [...new Set(schools.map(s => s.mentor_name).filter(Boolean))].sort();
 
   const exportCSV = () => {
-    const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','Learners','Status'];
+    const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','Learners','Status','Enrolled','Cohort','Guidelines'];
     const rows = filtered.map(s => [
       s.club_id||'', s.official_name, s.type, s.county,
       s.subcounty_area||'', s.mentor_name||'', s.club_leader_name||'',
       s.learner_count||0, s.status,
+      s.enrollment_date ? s.enrollment_date.split('T')[0] : '',
+      s.cohort||'', s.guidelines_signed ? 'Yes' : 'No',
     ]);
     const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
     const blob = new Blob([csv],{type:'text/csv'});
@@ -131,6 +151,12 @@ export default function Schools() {
     const a = document.createElement('a');
     a.href=url; a.download='schools_export.csv'; a.click();
   };
+
+  const SortTh = ({ label, sortK }) => (
+    <th style={{...styles.th, cursor:'pointer'}} onClick={() => handleSort(sortK)}>
+      {label} {sortKey === sortK ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+    </th>
+  );
 
   return (
     <Layout title="Schools & Community Centres" subtitle="Enrolled venues · Live records">
@@ -155,6 +181,12 @@ export default function Schools() {
       {/* Filter Bar */}
       <div style={styles.filterBar}>
         <div style={styles.filters}>
+          <input
+            style={{...styles.select, width:'200px'}}
+            placeholder="🔍 Search school name..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
           <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
             <option value="">All Counties</option>
             <option value="Kiambu">Kiambu</option>
@@ -170,8 +202,8 @@ export default function Schools() {
             <option value="">All Mentors</option>
             {mentorNames.map(m=><option key={m} value={m}>{m}</option>)}
           </select>
-          {(filterCounty||filterStatus||filterMentor) && (
-            <button style={styles.clearBtn} onClick={()=>{setFilterCounty('');setFilterStatus('');setFilterMentor('');}}>✕ Clear</button>
+          {(filterCounty||filterStatus||filterMentor||search) && (
+            <button style={styles.clearBtn} onClick={()=>{setFilterCounty('');setFilterStatus('');setFilterMentor('');setSearch('');}}>✕ Clear</button>
           )}
         </div>
         <div style={styles.actions}>
@@ -184,20 +216,23 @@ export default function Schools() {
       <div style={styles.tableCard}>
         <div style={styles.tableHeader}>
           <p style={styles.tableTitle}>All schools & community centres — RPF 2026</p>
-          <p style={styles.tableSub}>{filtered.length} schools · {centres} community centres · 3 counties · live database</p>
+          <p style={styles.tableSub}>{filtered.length} of {schools.length} records · {centres} community centres · 3 counties · live database</p>
         </div>
         {loading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
           <table style={styles.table}>
             <thead>
               <tr style={styles.thead}>
-                <th style={styles.th}>ID</th>
-                <th style={styles.th}>SCHOOL / CENTRE</th>
-                <th style={styles.th}>COUNTY</th>
-                <th style={styles.th}>AREA</th>
-                <th style={styles.th}>MENTOR</th>
-                <th style={styles.th}>CLUB LEADER</th>
-                <th style={styles.th}>LEARNERS</th>
-                <th style={styles.th}>STATUS</th>
+                <SortTh label="ID" sortK="club_id" />
+                <SortTh label="SCHOOL / CENTRE" sortK="official_name" />
+                <SortTh label="COUNTY" sortK="county" />
+                <SortTh label="AREA" sortK="subcounty_area" />
+                <SortTh label="MENTOR" sortK="mentor_name" />
+                <SortTh label="CLUB LEADER" sortK="club_leader_name" />
+                <SortTh label="LEARNERS" sortK="learner_count" />
+                <SortTh label="ENROLLED" sortK="enrollment_date" />
+                <th style={styles.th}>COHORT</th>
+                <th style={styles.th}>GUIDELINES</th>
+                <SortTh label="STATUS" sortK="status" />
                 <th style={styles.th}>ACTIONS</th>
               </tr>
             </thead>
@@ -215,6 +250,9 @@ export default function Schools() {
                   <td style={styles.td}>{school.mentor_name||'—'}</td>
                   <td style={styles.td}>{school.club_leader_name||'—'}</td>
                   <td style={styles.td}>{school.learner_count||0}</td>
+                  <td style={styles.td}>{school.enrollment_date ? new Date(school.enrollment_date).toLocaleDateString('en-KE') : '—'}</td>
+                  <td style={styles.td}><span style={styles.cohortBadge}>{school.cohort||'RPF 2026'}</span></td>
+                  <td style={styles.td}>{school.guidelines_signed ? '✅' : '✗'}</td>
                   <td style={styles.td}>
                     <span style={{...styles.statusBadge, background:school.status==='active'?'#eafaf1':'#fdedec', color:school.status==='active'?'#1a8a4a':'#e74c3c'}}>
                       ● {school.status==='active'?'Active':'Not started'}
@@ -246,7 +284,6 @@ export default function Schools() {
                 {label:'Safeguarding Sponsor', key:'safeguarding_sponsor'},
                 {label:'Sponsor Phone', key:'sponsor_phone'},
                 {label:'Subcounty / Area', key:'subcounty_area'},
-          
                 {label:'Learner Count', key:'learner_count', type:'number'},
                 {label:'Notes', key:'notes'},
               ].map(({label, key, type='text'}) => (
@@ -261,14 +298,24 @@ export default function Schools() {
                 </div>
               ))}
               <div style={styles.formGroup}>
-  <label style={styles.label}>Referral Source</label>
-  <select style={styles.input} value={form.referral_source} onChange={e=>setForm({...form,referral_source:e.target.value})}>
-    <option value="">— Select —</option>
-    <option value="ministry">Ministry</option>
-    <option value="self">Self</option>
-    <option value="other">Other</option>
-  </select>
-</div>
+                <label style={styles.label}>Enrollment Date</label>
+                <input type="date" style={styles.input} value={form.enrollment_date}
+                  onChange={e=>setForm({...form,enrollment_date:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Cohort</label>
+                <input type="text" style={styles.input} value={form.cohort}
+                  onChange={e=>setForm({...form,cohort:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Referral Source</label>
+                <select style={styles.input} value={form.referral_source} onChange={e=>setForm({...form,referral_source:e.target.value})}>
+                  <option value="">— Select —</option>
+                  <option value="ministry">Ministry</option>
+                  <option value="self">Self</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Type</label>
                 <select style={styles.input} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
@@ -334,7 +381,6 @@ export default function Schools() {
           </div>
         </div>
       )}
-
     </Layout>
   );
 }
@@ -345,7 +391,7 @@ const styles = {
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
   cardSub: { fontSize:'12px', margin:0, fontWeight:'500' },
-  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px' },
+  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
   filters: { display:'flex', gap:'10px', flexWrap:'wrap' },
   select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer' },
   actions: { display:'flex', gap:'10px' },
@@ -361,6 +407,7 @@ const styles = {
   td: { padding:'12px 16px', fontSize:'13px', color:'#4a5568' },
   clubId: { fontFamily:'monospace', fontSize:'12px', color:'#8a96a3', fontWeight:'600' },
   countyBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
+  cohortBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'11px', fontWeight:'600', background:'#f0f4ff', color:'#3b5bdb' },
   statusBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600', whiteSpace:'nowrap' },
   clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c' },
   editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9', marginRight:'6px' },
