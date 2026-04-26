@@ -112,8 +112,8 @@ export default function Schools() {
       setShowModal(false);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to save');
-    } finally {
+  alert(err.response?.data?.error || err.message);
+}finally {
       setSaving(false);
     }
   };
