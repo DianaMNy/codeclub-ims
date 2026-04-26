@@ -1,12 +1,28 @@
 // src/pages/Schools.jsx
 import { useEffect, useState } from 'react';
 import { getSchools, getMentors } from '../api/index';
+import axios from 'axios';
 import Layout from '../components/Layout';
+
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 const COUNTY_COLORS = {
   'Kiambu': '#69A9C9',
   'Kajiado': '#F7941D',
   "Murang'a": '#1eb457',
+};
+
+const EMPTY_FORM = {
+  club_id:'', official_name:'', type:'school', county:'Kiambu',
+  subcounty_area:'', referral_source:'', club_leader_name:'',
+  club_leader_phone:'', club_leader_email:'', safeguarding_sponsor:'',
+  sponsor_phone:'', learner_count:0, status:'enrolled',
+  guidelines_signed:false, notes:'', mentor_id:''
 };
 
 export default function Schools() {
@@ -16,15 +32,78 @@ export default function Schools() {
   const [filterCounty, setFilterCounty] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMentor, setFilterMentor] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingSchool, setEditingSchool] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  useEffect(() => {
+  const fetchData = () => {
+    setLoading(true);
     Promise.all([getSchools(), getMentors()])
       .then(([s, m]) => { setSchools(s.data); setMentors(m.data); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  // Filter logic
+  useEffect(() => { fetchData(); }, []);
+
+  const openEnrol = () => {
+    setEditingSchool(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+
+  const openEdit = (school) => {
+    setEditingSchool(school);
+    setForm({
+      club_id: school.club_id || '',
+      official_name: school.official_name || '',
+      type: school.type || 'school',
+      county: school.county || 'Kiambu',
+      subcounty_area: school.subcounty_area || '',
+      referral_source: school.referral_source || '',
+      club_leader_name: school.club_leader_name || '',
+      club_leader_phone: school.club_leader_phone || '',
+      club_leader_email: school.club_leader_email || '',
+      safeguarding_sponsor: school.safeguarding_sponsor || '',
+      sponsor_phone: school.sponsor_phone || '',
+      learner_count: school.learner_count || 0,
+      status: school.status || 'enrolled',
+      guidelines_signed: school.guidelines_signed || false,
+      notes: school.notes || '',
+      mentor_id: school.mentor_id || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editingSchool) {
+        await api.put(`/schools/${editingSchool.id}`, form);
+      } else {
+        await api.post('/schools', form);
+      }
+      setShowModal(false);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/schools/${id}`);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete');
+    }
+  };
+
   const filtered = schools.filter(s => {
     if (filterCounty && s.county !== filterCounty) return false;
     if (filterStatus && s.status !== filterStatus) return false;
@@ -39,27 +118,18 @@ export default function Schools() {
   const totalLearners = schools.reduce((sum, s) => sum + (s.learner_count || 0), 0);
   const mentorNames = [...new Set(schools.map(s => s.mentor_name).filter(Boolean))].sort();
 
-  // Export CSV
   const exportCSV = () => {
     const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','Learners','Status'];
     const rows = filtered.map(s => [
-      s.club_id || '',
-      s.official_name,
-      s.type,
-      s.county,
-      s.subcounty_area || '',
-      s.mentor_name || '',
-      s.club_leader_name || '',
-      s.learner_count || 0,
-      s.status,
+      s.club_id||'', s.official_name, s.type, s.county,
+      s.subcounty_area||'', s.mentor_name||'', s.club_leader_name||'',
+      s.learner_count||0, s.status,
     ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'schools_export.csv';
-    a.click();
+    a.href=url; a.download='schools_export.csv'; a.click();
   };
 
   return (
@@ -82,49 +152,41 @@ export default function Schools() {
         ))}
       </div>
 
-   <div style={styles.filterBar}>
-  <div style={styles.filters}>
-    <select style={styles.select} value={filterCounty} 
-      onChange={e => setFilterCounty(e.target.value)}>
-      <option value="">All Counties</option>
-      <option value="Kiambu">Kiambu</option>
-      <option value="Kajiado">Kajiado</option>
-      <option value="Murang'a">Murang'a</option>
-    </select>
-    <select style={styles.select} value={filterStatus}
-      onChange={e => setFilterStatus(e.target.value)}>
-      <option value="">All Statuses</option>
-      <option value="active">Active</option>
-      <option value="enrolled">Not Started</option>
-    </select>
-    <select style={styles.select} value={filterMentor}
-      onChange={e => setFilterMentor(e.target.value)}>
-      <option value="">All Mentors</option>
-      {mentorNames.map(m => <option key={m} value={m}>{m}</option>)}
-    </select>
-    {(filterCounty || filterStatus || filterMentor) && (
-      <button style={styles.clearBtn}
-        onClick={() => { setFilterCounty(''); setFilterStatus(''); setFilterMentor(''); }}>
-        ✕ Clear filters
-      </button>
-    )}
-  </div>
-  <div style={styles.actions}>
-    <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
-    <button style={styles.enrolBtn}>+ Enrol School</button>
-  </div>
-</div>
+      {/* Filter Bar */}
+      <div style={styles.filterBar}>
+        <div style={styles.filters}>
+          <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
+            <option value="">All Counties</option>
+            <option value="Kiambu">Kiambu</option>
+            <option value="Kajiado">Kajiado</option>
+            <option value="Murang'a">Murang'a</option>
+          </select>
+          <select style={styles.select} value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="enrolled">Not Started</option>
+          </select>
+          <select style={styles.select} value={filterMentor} onChange={e=>setFilterMentor(e.target.value)}>
+            <option value="">All Mentors</option>
+            {mentorNames.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+          {(filterCounty||filterStatus||filterMentor) && (
+            <button style={styles.clearBtn} onClick={()=>{setFilterCounty('');setFilterStatus('');setFilterMentor('');}}>✕ Clear</button>
+          )}
+        </div>
+        <div style={styles.actions}>
+          <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
+          <button style={styles.enrolBtn} onClick={openEnrol}>+ Enrol School</button>
+        </div>
+      </div>
 
       {/* Table */}
       <div style={styles.tableCard}>
         <div style={styles.tableHeader}>
-          <div>
-            <p style={styles.tableTitle}>All schools & community centres — RPF 2026</p>
-            <p style={styles.tableSub}>{filtered.length} schools · {centres} community centres · 3 counties · live database</p>
-          </div>
+          <p style={styles.tableTitle}>All schools & community centres — RPF 2026</p>
+          <p style={styles.tableSub}>{filtered.length} schools · {centres} community centres · 3 counties · live database</p>
         </div>
-
-        {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
+        {loading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
           <table style={styles.table}>
             <thead>
               <tr style={styles.thead}>
@@ -135,42 +197,32 @@ export default function Schools() {
                 <th style={styles.th}>MENTOR</th>
                 <th style={styles.th}>CLUB LEADER</th>
                 <th style={styles.th}>LEARNERS</th>
-                <th style={styles.th}>CLUB</th>
+                <th style={styles.th}>STATUS</th>
+                <th style={styles.th}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((school, i) => (
-                <tr key={school.id} style={{
-                  background: i % 2 === 0 ? '#fff' : '#fafafa',
-                  borderBottom: '1px solid #f0f0f0',
-                }}>
+                <tr key={school.id} style={{background: i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
+                  <td style={styles.td}><span style={styles.clubId}>{school.club_id||'—'}</span></td>
+                  <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{school.official_name}</td>
                   <td style={styles.td}>
-                    <span style={styles.clubId}>{school.club_id || '—'}</span>
-                  </td>
-                  <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>
-                    {school.official_name}
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{
-                      ...styles.countyBadge,
-                      background: (COUNTY_COLORS[school.county] || '#888') + '20',
-                      color: COUNTY_COLORS[school.county] || '#888',
-                    }}>
+                    <span style={{...styles.countyBadge, background:(COUNTY_COLORS[school.county]||'#888')+'20', color:COUNTY_COLORS[school.county]||'#888'}}>
                       {school.county}
                     </span>
                   </td>
-                  <td style={styles.td}>{school.subcounty_area || '—'}</td>
-                  <td style={styles.td}>{school.mentor_name || '—'}</td>
-                  <td style={styles.td}>{school.club_leader_name || '—'}</td>
-                  <td style={styles.td}>{school.learner_count || 0}</td>
+                  <td style={styles.td}>{school.subcounty_area||'—'}</td>
+                  <td style={styles.td}>{school.mentor_name||'—'}</td>
+                  <td style={styles.td}>{school.club_leader_name||'—'}</td>
+                  <td style={styles.td}>{school.learner_count||0}</td>
                   <td style={styles.td}>
-                    <span style={{
-                      ...styles.statusBadge,
-                      background: school.status === 'active' ? '#eafaf1' : '#fdedec',
-                      color: school.status === 'active' ? '#1a8a4a' : '#e74c3c',
-                    }}>
-                      ● {school.status === 'active' ? 'Active' : 'Not started'}
+                    <span style={{...styles.statusBadge, background:school.status==='active'?'#eafaf1':'#fdedec', color:school.status==='active'?'#1a8a4a':'#e74c3c'}}>
+                      ● {school.status==='active'?'Active':'Not started'}
                     </span>
+                  </td>
+                  <td style={styles.td}>
+                    <button style={styles.editBtn} onClick={()=>openEdit(school)}>✏️ Edit</button>
+                    <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(school)}>🗑️</button>
                   </td>
                 </tr>
               ))}
@@ -178,6 +230,102 @@ export default function Schools() {
           </table>
         )}
       </div>
+
+      {/* Enrol / Edit Modal */}
+      {showModal && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>{editingSchool ? '✏️ Edit School' : '+ Enrol School / Centre'}</h3>
+            <div style={styles.formGrid}>
+              {[
+                {label:'Club ID', key:'club_id'},
+                {label:'Official Name *', key:'official_name'},
+                {label:'Club Leader Name', key:'club_leader_name'},
+                {label:'Club Leader Phone', key:'club_leader_phone'},
+                {label:'Club Leader Email', key:'club_leader_email'},
+                {label:'Safeguarding Sponsor', key:'safeguarding_sponsor'},
+                {label:'Sponsor Phone', key:'sponsor_phone'},
+                {label:'Subcounty / Area', key:'subcounty_area'},
+                {label:'Referral Source', key:'referral_source'},
+                {label:'Learner Count', key:'learner_count', type:'number'},
+                {label:'Notes', key:'notes'},
+              ].map(({label, key, type='text'}) => (
+                <div key={key} style={styles.formGroup}>
+                  <label style={styles.label}>{label}</label>
+                  <input
+                    type={type}
+                    style={styles.input}
+                    value={form[key]}
+                    onChange={e=>setForm({...form, [key]: type==='number'?Number(e.target.value):e.target.value})}
+                  />
+                </div>
+              ))}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Type</label>
+                <select style={styles.input} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
+                  <option value="school">School</option>
+                  <option value="community_centre">Community Centre</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>County</label>
+                <select style={styles.input} value={form.county} onChange={e=>setForm({...form,county:e.target.value})}>
+                  <option value="Kiambu">Kiambu</option>
+                  <option value="Kajiado">Kajiado</option>
+                  <option value="Murang'a">Murang'a</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Status</label>
+                <select style={styles.input} value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
+                  <option value="enrolled">Not Started</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Mentor</label>
+                <select style={styles.input} value={form.mentor_id} onChange={e=>setForm({...form,mentor_id:e.target.value})}>
+                  <option value="">— No mentor assigned —</option>
+                  {mentors.map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  <input type="checkbox" checked={form.guidelines_signed}
+                    onChange={e=>setForm({...form,guidelines_signed:e.target.checked})} />
+                  {' '}Guidelines Signed
+                </label>
+              </div>
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setShowModal(false)}>Cancel</button>
+              <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : editingSchool ? 'Save Changes' : 'Enrol'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm */}
+      {deleteConfirm && (
+        <div style={styles.overlay}>
+          <div style={{...styles.modal, maxWidth:'400px'}}>
+            <h3 style={{color:'#e74c3c', margin:'0 0 12px'}}>⚠️ Delete School</h3>
+            <p style={{color:'#555', margin:'0 0 20px'}}>
+              Are you sure you want to delete <strong>{deleteConfirm.official_name}</strong>? This cannot be undone.
+            </p>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setDeleteConfirm(null)}>Cancel</button>
+              <button style={{...styles.saveBtn, background:'#e74c3c'}} onClick={()=>handleDelete(deleteConfirm.id)}>
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }
@@ -189,8 +337,8 @@ const styles = {
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
   cardSub: { fontSize:'12px', margin:0, fontWeight:'500' },
   filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px' },
-  filters: { display:'flex', gap:'10px' },
-  select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
+  filters: { display:'flex', gap:'10px', flexWrap:'wrap' },
+  select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer' },
   actions: { display:'flex', gap:'10px' },
   exportBtn: { padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
   enrolBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
@@ -206,4 +354,16 @@ const styles = {
   countyBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
   statusBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600', whiteSpace:'nowrap' },
   clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c' },
+  editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9', marginRight:'6px' },
+  deleteBtn: { padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
+  overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
+  modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'700px', maxHeight:'85vh', overflowY:'auto' },
+  modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
+  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
+  formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
+  label: { fontSize:'12px', fontWeight:'600', color:'#555' },
+  input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },
+  modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
+  cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
+  saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
 };
