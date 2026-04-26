@@ -28,7 +28,7 @@ const KENYA_COUNTIES = [
   'Migori','Kisii','Nyamira','Nairobi'
 ];
 
-{KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+
 
 const EMPTY_FORM = {
   club_id:'', official_name:'', type:'school', county:'Kiambu',
@@ -202,9 +202,9 @@ export default function Schools() {
           />
           <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
             <option value="">All Counties</option>
-            <option value="Kiambu">Kiambu</option>
-            <option value="Kajiado">Kajiado</option>
-            <option value="Murang'a">Murang'a</option>
+            {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select style={styles.select} value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
             <option value="">All Statuses</option>
@@ -339,9 +339,9 @@ export default function Schools() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>County</label>
                 <select style={styles.input} value={form.county} onChange={e=>setForm({...form,county:e.target.value})}>
-                  <option value="Kiambu">Kiambu</option>
-                  <option value="Kajiado">Kajiado</option>
-                  <option value="Murang'a">Murang'a</option>
+                 {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div style={styles.formGroup}>
