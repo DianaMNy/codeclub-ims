@@ -73,4 +73,90 @@ router.get('/mentor/my-schools', requireAuth, async (req, res) => {
   }
 });
 
+
+// ── POST /api/schools ─────────────────────────────────────────
+// Create a new school — Admin only
+router.post('/', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const {
+      club_id, official_name, type, county, subcounty_area,
+      referral_source, club_leader_name, club_leader_phone, club_leader_email,
+      safeguarding_sponsor, sponsor_phone, learner_count, status,
+      guidelines_signed, notes, mentor_id
+    } = req.body;
+
+    const result = await pool.query(`
+      INSERT INTO schools_and_centres 
+        (club_id, official_name, type, county, subcounty_area,
+         referral_source, club_leader_name, club_leader_phone, club_leader_email,
+         safeguarding_sponsor, sponsor_phone, learner_count, status,
+         guidelines_signed, notes, mentor_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      RETURNING *
+    `, [club_id, official_name, type, county, subcounty_area,
+        referral_source, club_leader_name, club_leader_phone, club_leader_email,
+        safeguarding_sponsor, sponsor_phone, learner_count, status,
+        guidelines_signed, notes, mentor_id]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Create school error:', err.message);
+    res.status(500).json({ error: 'Failed to create school' });
+  }
+});
+
+// ── PUT /api/schools/:id ──────────────────────────────────────
+// Update a school — Admin only
+router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const {
+      club_id, official_name, type, county, subcounty_area,
+      referral_source, club_leader_name, club_leader_phone, club_leader_email,
+      safeguarding_sponsor, sponsor_phone, learner_count, status,
+      guidelines_signed, notes, mentor_id
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE schools_and_centres SET
+        club_id=$1, official_name=$2, type=$3, county=$4, subcounty_area=$5,
+        referral_source=$6, club_leader_name=$7, club_leader_phone=$8, club_leader_email=$9,
+        safeguarding_sponsor=$10, sponsor_phone=$11, learner_count=$12, status=$13,
+        guidelines_signed=$14, notes=$15, mentor_id=$16
+      WHERE id=$17
+      RETURNING *
+    `, [club_id, official_name, type, county, subcounty_area,
+        referral_source, club_leader_name, club_leader_phone, club_leader_email,
+        safeguarding_sponsor, sponsor_phone, learner_count, status,
+        guidelines_signed, notes, mentor_id, req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update school error:', err.message);
+    res.status(500).json({ error: 'Failed to update school' });
+  }
+});
+
+// ── DELETE /api/schools/:id ───────────────────────────────────
+// Delete a school — Admin only
+router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM schools_and_centres WHERE id=$1 RETURNING *',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    res.json({ message: 'School deleted successfully' });
+  } catch (err) {
+    console.error('Delete school error:', err.message);
+    res.status(500).json({ error: 'Failed to delete school' });
+  }
+});
 module.exports = router;
