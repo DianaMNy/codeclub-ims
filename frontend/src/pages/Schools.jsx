@@ -54,6 +54,7 @@ export default function Schools() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [sortKey, setSortKey] = useState('official_name');
   const [sortDir, setSortDir] = useState('asc');
+  const [filterType, setFilterType] = useState('');
 
   const fetchData = () => {
     setLoading(true);
@@ -149,7 +150,7 @@ export default function Schools() {
   const centres = schools.filter(s => s.type === 'community_centre').length;
   const totalLearners = schools.reduce((sum, s) => sum + (s.learner_count || 0), 0);
   const mentorNames = [...new Set(schools.map(s => s.mentor_name).filter(Boolean))].sort();
-  const [filterType, setFilterType] = useState('');
+  
 
   const exportCSV = () => {
     const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','Learners','Status','Enrolled','Cohort','Guidelines'];
