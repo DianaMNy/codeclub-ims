@@ -110,11 +110,11 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const {
-      club_id, official_name, type, county, subcounty_area,
-      referral_source, club_leader_name, club_leader_phone, club_leader_email,
-      safeguarding_sponsor, sponsor_phone, learner_count, status,
-      guidelines_signed, notes, mentor_id
-    } = req.body;
+  club_id, official_name, type, county, subcounty_area,
+  referral_source, club_leader_name, club_leader_phone, club_leader_email,
+  safeguarding_sponsor, sponsor_phone, learner_count, status,
+  guidelines_signed, notes, mentor_id, enrollment_date, cohort
+} = req.body;
 
    const result = await pool.query(`
   UPDATE schools_and_centres SET
