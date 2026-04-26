@@ -246,7 +246,7 @@ export default function Schools() {
                 {label:'Safeguarding Sponsor', key:'safeguarding_sponsor'},
                 {label:'Sponsor Phone', key:'sponsor_phone'},
                 {label:'Subcounty / Area', key:'subcounty_area'},
-                {label:'Referral Source', key:'referral_source'},
+          
                 {label:'Learner Count', key:'learner_count', type:'number'},
                 {label:'Notes', key:'notes'},
               ].map(({label, key, type='text'}) => (
@@ -260,6 +260,15 @@ export default function Schools() {
                   />
                 </div>
               ))}
+              <div style={styles.formGroup}>
+  <label style={styles.label}>Referral Source</label>
+  <select style={styles.input} value={form.referral_source} onChange={e=>setForm({...form,referral_source:e.target.value})}>
+    <option value="">— Select —</option>
+    <option value="ministry">Ministry</option>
+    <option value="self">Self</option>
+    <option value="other">Other</option>
+  </select>
+</div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Type</label>
                 <select style={styles.input} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
