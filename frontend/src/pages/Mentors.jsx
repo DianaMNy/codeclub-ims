@@ -4,22 +4,6 @@ import { getMentors } from '../api/index';
 import axios from 'axios';
 import Layout from '../components/Layout';
 
-const [selectedMentor, setSelectedMentor] = useState(null);
-const [mentorDetail, setMentorDetail] = useState(null);
-const [loadingDetail, setLoadingDetail] = useState(false);
-
-const openDetail = async (mentor) => {
-  setSelectedMentor(mentor);
-  setLoadingDetail(true);
-  try {
-    const res = await api.get(`/mentors/${mentor.id}`);
-    setMentorDetail(res.data);
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setLoadingDetail(false);
-  }
-};
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -72,6 +56,23 @@ export default function Mentors() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const [selectedMentor, setSelectedMentor] = useState(null);
+const [mentorDetail, setMentorDetail] = useState(null);
+const [loadingDetail, setLoadingDetail] = useState(false);
+
+const openDetail = async (mentor) => {
+  setSelectedMentor(mentor);
+  setLoadingDetail(true);
+  try {
+    const res = await api.get(`/mentors/${mentor.id}`);
+    setMentorDetail(res.data);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoadingDetail(false);
+  }
+};
 
   const fetchData = () => {
     setLoading(true);
