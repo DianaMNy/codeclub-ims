@@ -256,10 +256,8 @@ export default function Mentors() {
                     </span>
                   </td>
                   <td style={styles.td}>
-                    <button style={styles.editBtn} onClick={()=>openEdit(mentor)}>✏️ Edit</button>
                     <button style={styles.viewBtn} onClick={()=>openDetail(mentor)}>👁️ View</button>
-<button style={styles.editBtn} onClick={()=>openEdit(mentor)}>✏️ Edit</button>
-<button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(mentor)}>🗑️</button>
+                    <button style={styles.editBtn} onClick={()=>openEdit(mentor)}>✏️ Edit</button>
                     <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(mentor)}>🗑️</button>
                   </td>
                 </tr>
