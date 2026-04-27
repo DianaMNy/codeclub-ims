@@ -1,12 +1,36 @@
 // src/pages/Mentors.jsx
 import { useEffect, useState } from 'react';
 import { getMentors } from '../api/index';
+import axios from 'axios';
 import Layout from '../components/Layout';
+
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 const AVATAR_COLORS = [
   '#1eb457','#F7941D','#69A9C9','#9b59b6',
   '#e74c3c','#1abc9c','#f39c12','#2980b9',
 ];
+
+const KENYA_COUNTIES = [
+  'Mombasa','Kwale','Kilifi','Tana River','Lamu','Taita-Taveta',
+  'Garissa','Wajir','Mandera','Marsabit','Isiolo','Meru',
+  'Tharaka-Nithi','Embu','Kitui','Machakos','Makueni','Nyandarua',
+  'Nyeri','Kirinyaga',"Murang'a",'Kiambu','Turkana','West Pokot',
+  'Samburu','Trans Nzoia','Uasin Gishu','Elgeyo-Marakwet','Nandi',
+  'Baringo','Laikipia','Nakuru','Narok','Kajiado','Kericho','Bomet',
+  'Kakamega','Vihiga','Bungoma','Busia','Siaya','Kisumu','Homa Bay',
+  'Migori','Kisii','Nyamira','Nairobi'
+];
+
+const EMPTY_FORM = {
+  full_name:'', email:'', phone:'', subcounty_area:'',
+  status:'active', join_date:'', county:''
+};
 
 function getInitials(name) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -21,77 +45,202 @@ function getColor(name) {
 export default function Mentors() {
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterCounty, setFilterCounty] = useState('');
+  const [sortKey, setSortKey] = useState('full_name');
+  const [sortDir, setSortDir] = useState('asc');
+  const [showModal, setShowModal] = useState(false);
+  const [editingMentor, setEditingMentor] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  useEffect(() => {
+  const fetchData = () => {
+    setLoading(true);
     getMentors()
       .then(res => setMentors(res.data))
-      .catch(err => console.error(err))
+      .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const openAdd = () => {
+    setEditingMentor(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+
+  const openEdit = (mentor) => {
+    setEditingMentor(mentor);
+    setForm({
+      full_name: mentor.full_name || '',
+      email: mentor.email || '',
+      phone: mentor.phone || '',
+      subcounty_area: mentor.subcounty_area || '',
+      status: mentor.status || 'active',
+      join_date: mentor.join_date ? mentor.join_date.split('T')[0] : '',
+      county: mentor.county || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editingMentor) {
+        await api.put(`/mentors/${editingMentor.id}`, form);
+      } else {
+        await api.post('/mentors', form);
+      }
+      setShowModal(false);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/mentors/${id}`);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete');
+    }
+  };
+
+  const filtered = mentors
+    .filter(m => {
+      if (search && !m.full_name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterStatus && m.status !== filterStatus) return false;
+      if (filterCounty && m.county !== filterCounty) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const av = a[sortKey] || '';
+      const bv = b[sortKey] || '';
+      return sortDir === 'asc' ? av > bv ? 1 : -1 : av < bv ? 1 : -1;
+    });
 
   const activeMentors = mentors.filter(m => m.status === 'active').length;
   const onLeave = mentors.filter(m => m.status === 'on_leave').length;
   const totalSchools = mentors.reduce((sum, m) => sum + parseInt(m.schools_assigned || 0), 0);
+
+  const SortTh = ({ label, sortK }) => (
+    <th style={{...styles.th, cursor:'pointer'}} onClick={() => handleSort(sortK)}>
+      {label} {sortKey === sortK ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+    </th>
+  );
 
   return (
     <Layout title="Mentors" subtitle="Field team · Evidence tracking">
 
       {/* Stat Cards */}
       <div style={styles.cards}>
-        <div style={{...styles.card, borderTop: '4px solid #69A9C9'}}>
-          <p style={styles.cardLabel}>TOTAL MENTORS</p>
-          <p style={styles.cardValue}>{mentors.length}</p>
-          <p style={styles.cardSub}>{activeMentors} active · {onLeave} on leave</p>
-        </div>
-        <div style={{...styles.card, borderTop: '4px solid #1eb457'}}>
-          <p style={styles.cardLabel}>SCHOOLS ASSIGNED</p>
-          <p style={styles.cardValue}>{totalSchools}</p>
-          <p style={styles.cardSub}>across all mentors</p>
-        </div>
-        <div style={{...styles.card, borderTop: '4px solid #F7941D'}}>
-          <p style={styles.cardLabel}>ACTIVE MENTORS</p>
-          <p style={styles.cardValue}>{activeMentors}</p>
-          <p style={styles.cardSub}>currently in field</p>
-        </div>
+        {[
+          { label:'TOTAL MENTORS', value: mentors.length, sub:`${activeMentors} active · ${onLeave} on leave`, color:'#69A9C9' },
+          { label:'SCHOOLS ASSIGNED', value: totalSchools, sub:'across all mentors', color:'#1eb457' },
+          { label:'ACTIVE MENTORS', value: activeMentors, sub:'currently in field', color:'#F7941D' },
+          { label:'ON LEAVE', value: onLeave, sub:'temporarily away', color:'#9b59b6' },
+        ].map(card => (
+          <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
+            <p style={styles.cardLabel}>{card.label}</p>
+            <p style={styles.cardValue}>{card.value}</p>
+            <p style={{...styles.cardSub, color: card.color}}>{card.sub}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Mentors Table */}
+      {/* Filter Bar */}
+      <div style={styles.filterBar}>
+        <div style={styles.filters}>
+          <input
+            style={{...styles.select, width:'200px'}}
+            placeholder="🔍 Search mentor name..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select style={styles.select} value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="on_leave">On Leave</option>
+          </select>
+          <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
+            <option value="">All Counties</option>
+            {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(search||filterStatus||filterCounty) && (
+            <button style={styles.clearBtn} onClick={()=>{setSearch('');setFilterStatus('');setFilterCounty('');}}>✕ Clear</button>
+          )}
+        </div>
+        <button style={styles.addBtn} onClick={openAdd}>+ Add Mentor</button>
+      </div>
+
+      {/* Table */}
       <div style={styles.section}>
-        <p style={styles.sectionTitle}>Full mentor roster — RPF 2026</p>
-        {loading ? <p style={{color:'#888'}}>Loading...</p> : (
+        <div style={styles.sectionHeader}>
+          <p style={styles.sectionTitle}>Full mentor roster — RPF 2026</p>
+          <p style={styles.sectionSub}>{filtered.length} of {mentors.length} mentors</p>
+        </div>
+        {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
           <table style={styles.table}>
             <thead>
-              <tr>
-                <th style={styles.th}>MENTOR</th>
-                <th style={styles.th}>SUB-COUNTY / AREA</th>
-                <th style={styles.th}>SCHOOLS ASSIGNED</th>
-                <th style={styles.th}>STATUS</th>
+              <tr style={{background:'#f8f9fa'}}>
+                <SortTh label="MENTOR" sortK="full_name" />
+                <SortTh label="COUNTY" sortK="county" />
+                <SortTh label="AREA" sortK="subcounty_area" />
+                <th style={styles.th}>CONTACT</th>
+                <SortTh label="SCHOOLS" sortK="schools_assigned" />
+                <SortTh label="JOINED" sortK="join_date" />
+                <SortTh label="STATUS" sortK="status" />
+                <th style={styles.th}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {mentors.map((mentor, i) => (
-                <tr key={mentor.id} style={{background: i % 2 === 0 ? '#fff' : '#fafafa'}}>
+              {filtered.map((mentor, i) => (
+                <tr key={mentor.id} style={{background: i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
                   <td style={styles.td}>
                     <div style={styles.mentorCell}>
                       <div style={{...styles.avatar, background: getColor(mentor.full_name)}}>
                         {getInitials(mentor.full_name)}
                       </div>
-                      <span style={styles.mentorName}>{mentor.full_name}</span>
+                      <div>
+                        <p style={{margin:0, fontWeight:'600', color:'#1a2332'}}>{mentor.full_name}</p>
+                        <p style={{margin:0, fontSize:'11px', color:'#888'}}>{mentor.email || '—'}</p>
+                      </div>
                     </div>
                   </td>
+                  <td style={styles.td}>{mentor.county || '—'}</td>
                   <td style={styles.td}>{mentor.subcounty_area || '—'}</td>
-                  <td style={styles.td}>{mentor.schools_assigned}</td>
+                  <td style={styles.td}>{mentor.phone || '—'}</td>
+                  <td style={styles.td}>
+                    <span style={styles.schoolCount}>{mentor.schools_assigned}</span>
+                  </td>
+                  <td style={styles.td}>
+                    {mentor.join_date ? new Date(mentor.join_date).toLocaleDateString('en-KE') : '—'}
+                  </td>
                   <td style={styles.td}>
                     <span style={{
                       ...styles.badge,
-                      background: mentor.status === 'active' ? '#e8f8ee' :
-                                  mentor.status === 'on_leave' ? '#fff3e0' : '#fee',
-                      color: mentor.status === 'active' ? '#1eb457' :
-                             mentor.status === 'on_leave' ? '#F7941D' : '#e74c3c',
+                      background: mentor.status==='active'?'#e8f8ee': mentor.status==='on_leave'?'#fff3e0':'#fee',
+                      color: mentor.status==='active'?'#1eb457': mentor.status==='on_leave'?'#F7941D':'#e74c3c',
                     }}>
-                      ● {mentor.status === 'on_leave' ? 'On leave' :
-                         mentor.status.charAt(0).toUpperCase() + mentor.status.slice(1)}
+                      ● {mentor.status==='on_leave'?'On Leave': mentor.status.charAt(0).toUpperCase()+mentor.status.slice(1)}
                     </span>
+                  </td>
+                  <td style={styles.td}>
+                    <button style={styles.editBtn} onClick={()=>openEdit(mentor)}>✏️ Edit</button>
+                    <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(mentor)}>🗑️</button>
                   </td>
                 </tr>
               ))}
@@ -99,23 +248,123 @@ export default function Mentors() {
           </table>
         )}
       </div>
+
+      {/* Add / Edit Modal */}
+      {showModal && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>{editingMentor ? '✏️ Edit Mentor' : '+ Add Mentor'}</h3>
+            <div style={styles.formGrid}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Full Name *</label>
+                <input style={styles.input} value={form.full_name}
+                  onChange={e=>setForm({...form,full_name:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Email</label>
+                <input style={styles.input} type="email" value={form.email}
+                  onChange={e=>setForm({...form,email:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Phone</label>
+                <input style={styles.input} value={form.phone}
+                  onChange={e=>setForm({...form,phone:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>County</label>
+                <select style={styles.input} value={form.county}
+                  onChange={e=>setForm({...form,county:e.target.value})}>
+                  <option value="">— Select County —</option>
+                  {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Subcounty / Area</label>
+                <input style={styles.input} value={form.subcounty_area}
+                  onChange={e=>setForm({...form,subcounty_area:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Join Date</label>
+                <input style={styles.input} type="date" value={form.join_date}
+                  onChange={e=>setForm({...form,join_date:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Status</label>
+                <select style={styles.input} value={form.status}
+                  onChange={e=>setForm({...form,status:e.target.value})}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="on_leave">On Leave</option>
+                </select>
+              </div>
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setShowModal(false)}>Cancel</button>
+              <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : editingMentor ? 'Save Changes' : 'Add Mentor'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm */}
+      {deleteConfirm && (
+        <div style={styles.overlay}>
+          <div style={{...styles.modal, maxWidth:'400px'}}>
+            <h3 style={{color:'#e74c3c', margin:'0 0 12px'}}>⚠️ Delete Mentor</h3>
+            <p style={{color:'#555', margin:'0 0 8px'}}>
+              Are you sure you want to delete <strong>{deleteConfirm.full_name}</strong>?
+            </p>
+            <p style={{color:'#e74c3c', fontSize:'13px', margin:'0 0 20px'}}>
+              ⚠️ This will NOT delete their assigned schools, but schools will lose their mentor assignment.
+            </p>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setDeleteConfirm(null)}>Cancel</button>
+              <button style={{...styles.saveBtn, background:'#e74c3c'}} onClick={()=>handleDelete(deleteConfirm.id)}>
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }
 
 const styles = {
-  cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' },
-  card: { background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-  cardLabel: { fontSize: '11px', fontWeight: '700', color: '#888', letterSpacing: '0.5px', margin: '0 0 8px 0' },
-  cardValue: { fontSize: '40px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 4px 0' },
-  cardSub: { fontSize: '12px', color: '#888', margin: 0 },
-  section: { background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-  sectionTitle: { fontSize: '15px', fontWeight: '600', color: '#555', margin: '0 0 20px 0' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: { padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#888', letterSpacing: '0.5px', borderBottom: '2px solid #f0f0f0' },
-  td: { padding: '14px 16px', fontSize: '14px', color: '#333', borderBottom: '1px solid #f5f5f5' },
-  mentorCell: { display: 'flex', alignItems: 'center', gap: '12px' },
-  avatar: { width: '36px', height: '36px', borderRadius: '50%', color: '#fff', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  mentorName: { fontWeight: '500' },
-  badge: { padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'16px', marginBottom:'20px' },
+  card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
+  cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
+  cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
+  cardSub: { fontSize:'12px', margin:0, fontWeight:'500' },
+  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
+  filters: { display:'flex', gap:'10px', flexWrap:'wrap' },
+  select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer' },
+  addBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#1eb457', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
+  clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c' },
+  section: { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflow:'hidden' },
+  sectionHeader: { padding:'20px 24px', borderBottom:'1px solid #f0f0f0' },
+  sectionTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
+  sectionSub: { fontSize:'12px', color:'#8a96a3', margin:0 },
+  table: { width:'100%', borderCollapse:'collapse' },
+  th: { padding:'10px 16px', textAlign:'left', fontSize:'11px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', borderBottom:'2px solid #f0f0f0', whiteSpace:'nowrap' },
+  td: { padding:'12px 16px', fontSize:'13px', color:'#4a5568' },
+  mentorCell: { display:'flex', alignItems:'center', gap:'12px' },
+  avatar: { width:'38px', height:'38px', borderRadius:'50%', color:'#fff', fontSize:'13px', fontWeight:'700', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  schoolCount: { padding:'3px 10px', borderRadius:'999px', background:'#f0f4ff', color:'#3b5bdb', fontSize:'12px', fontWeight:'600' },
+  badge: { padding:'4px 10px', borderRadius:'20px', fontSize:'12px', fontWeight:'600' },
+  editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9', marginRight:'6px' },
+  deleteBtn: { padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
+  overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
+  modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'600px', maxHeight:'85vh', overflowY:'auto' },
+  modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
+  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
+  formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
+  label: { fontSize:'12px', fontWeight:'600', color:'#555' },
+  input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },
+  modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
+  cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
+  saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#1eb457', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
 };
