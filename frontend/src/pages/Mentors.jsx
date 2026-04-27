@@ -481,4 +481,5 @@ const styles = {
   modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
   cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#1eb457', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
+viewBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #1eb457', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#1eb457', marginRight:'6px' },
 };
