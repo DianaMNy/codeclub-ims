@@ -4,6 +4,23 @@ import { getMentors } from '../api/index';
 import axios from 'axios';
 import Layout from '../components/Layout';
 
+const [selectedMentor, setSelectedMentor] = useState(null);
+const [mentorDetail, setMentorDetail] = useState(null);
+const [loadingDetail, setLoadingDetail] = useState(false);
+
+const openDetail = async (mentor) => {
+  setSelectedMentor(mentor);
+  setLoadingDetail(true);
+  try {
+    const res = await api.get(`/mentors/${mentor.id}`);
+    setMentorDetail(res.data);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoadingDetail(false);
+  }
+};
+
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
@@ -240,6 +257,9 @@ export default function Mentors() {
                   </td>
                   <td style={styles.td}>
                     <button style={styles.editBtn} onClick={()=>openEdit(mentor)}>✏️ Edit</button>
+                    <button style={styles.viewBtn} onClick={()=>openDetail(mentor)}>👁️ View</button>
+<button style={styles.editBtn} onClick={()=>openEdit(mentor)}>✏️ Edit</button>
+<button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(mentor)}>🗑️</button>
                     <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(mentor)}>🗑️</button>
                   </td>
                 </tr>
@@ -328,6 +348,100 @@ export default function Mentors() {
           </div>
         </div>
       )}
+      {selectedMentor && (
+  <div style={styles.overlay} onClick={()=>setSelectedMentor(null)}>
+    <div style={{...styles.modal, maxWidth:'550px'}} onClick={e=>e.stopPropagation()}>
+      
+      {/* Header */}
+      <div style={{display:'flex', alignItems:'center', gap:'16px', marginBottom:'24px'}}>
+        <div style={{...styles.avatar, width:'52px', height:'52px', fontSize:'18px', background: getColor(selectedMentor.full_name)}}>
+          {getInitials(selectedMentor.full_name)}
+        </div>
+        <div>
+          <h3 style={{margin:0, color:'#1a2332'}}>{selectedMentor.full_name}</h3>
+          <p style={{margin:0, fontSize:'13px', color:'#888'}}>{selectedMentor.email} · {selectedMentor.phone}</p>
+          <p style={{margin:0, fontSize:'13px', color:'#888'}}>{selectedMentor.county} · {selectedMentor.subcounty_area}</p>
+        </div>
+      </div>
+
+      {loadingDetail ? <p style={{color:'#888'}}>Loading venues...</p> : mentorDetail && (
+        <>
+          {/* Summary */}
+          <div style={{display:'flex', gap:'12px', marginBottom:'24px'}}>
+            <div style={{flex:1, background:'#f0f4ff', borderRadius:'10px', padding:'12px', textAlign:'center'}}>
+              <p style={{margin:0, fontSize:'24px', fontWeight:'700', color:'#3b5bdb'}}>{mentorDetail.schools.length}</p>
+              <p style={{margin:0, fontSize:'11px', color:'#666', fontWeight:'600'}}>SCHOOLS</p>
+            </div>
+            <div style={{flex:1, background:'#fff3e0', borderRadius:'10px', padding:'12px', textAlign:'center'}}>
+              <p style={{margin:0, fontSize:'24px', fontWeight:'700', color:'#F7941D'}}>{mentorDetail.community_centres.length}</p>
+              <p style={{margin:0, fontSize:'11px', color:'#666', fontWeight:'600'}}>COMMUNITY CENTRES</p>
+            </div>
+            <div style={{flex:1, background:'#e8f8ee', borderRadius:'10px', padding:'12px', textAlign:'center'}}>
+              <p style={{margin:0, fontSize:'24px', fontWeight:'700', color:'#1eb457'}}>{mentorDetail.schools.length + mentorDetail.community_centres.length}</p>
+              <p style={{margin:0, fontSize:'11px', color:'#666', fontWeight:'600'}}>TOTAL VENUES</p>
+            </div>
+          </div>
+
+          {/* Schools */}
+          {mentorDetail.schools.length > 0 && (
+            <div style={{marginBottom:'20px'}}>
+              <p style={{fontSize:'13px', fontWeight:'700', color:'#1a2332', margin:'0 0 10px 0'}}>
+                🏫 Schools ({mentorDetail.schools.length})
+              </p>
+              {mentorDetail.schools.map(s => (
+                <div key={s.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', borderRadius:'8px', background:'#f8f9fa', marginBottom:'6px'}}>
+                  <div>
+                    <p style={{margin:0, fontSize:'13px', fontWeight:'500', color:'#1a2332'}}>{s.official_name}</p>
+                    <p style={{margin:0, fontSize:'11px', color:'#888'}}>{s.county} · {s.subcounty_area}</p>
+                  </div>
+                  <span style={{
+                    padding:'3px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'600',
+                    background: s.status==='active'?'#eafaf1':'#fdedec',
+                    color: s.status==='active'?'#1a8a4a':'#e74c3c'
+                  }}>
+                    {s.status==='active'?'Active':'Not started'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Community Centres */}
+          {mentorDetail.community_centres.length > 0 && (
+            <div style={{marginBottom:'20px'}}>
+              <p style={{fontSize:'13px', fontWeight:'700', color:'#1a2332', margin:'0 0 10px 0'}}>
+                🏢 Community Centres ({mentorDetail.community_centres.length})
+              </p>
+              {mentorDetail.community_centres.map(s => (
+                <div key={s.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', borderRadius:'8px', background:'#fff3e0', marginBottom:'6px'}}>
+                  <div>
+                    <p style={{margin:0, fontSize:'13px', fontWeight:'500', color:'#1a2332'}}>{s.official_name}</p>
+                    <p style={{margin:0, fontSize:'11px', color:'#888'}}>{s.county} · {s.subcounty_area}</p>
+                  </div>
+                  <span style={{
+                    padding:'3px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'600',
+                    background: s.status==='active'?'#eafaf1':'#fdedec',
+                    color: s.status==='active'?'#1a8a4a':'#e74c3c'
+                  }}>
+                    {s.status==='active'?'Active':'Not started'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {mentorDetail.schools.length === 0 && mentorDetail.community_centres.length === 0 && (
+            <p style={{color:'#888', textAlign:'center', padding:'20px'}}>No venues assigned yet.</p>
+          )}
+        </>
+      )}
+
+      <div style={{display:'flex', justifyContent:'flex-end', marginTop:'16px'}}>
+        <button style={styles.cancelBtn} onClick={()=>setSelectedMentor(null)}>Close</button>
+      </div>
+    </div>
+  </div>
+)}
 
     </Layout>
   );
