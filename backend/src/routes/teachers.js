@@ -27,4 +27,54 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+
+const { requireAdmin } = require('../middleware/auth');
+
+// POST /api/teachers
+router.post('/', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done } = req.body;
+    const result = await pool.query(`
+      INSERT INTO teachers (school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING *
+    `, [school_id, full_name, role || 'club_leader', phone, email, ict_confidence || 'beginner', training_completed || false, safeguarding_done || false]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Create teacher error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/teachers/:id
+router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done } = req.body;
+    const result = await pool.query(`
+      UPDATE teachers SET
+        school_id=$1, full_name=$2, role=$3, phone=$4, email=$5,
+        ict_confidence=$6, training_completed=$7, safeguarding_done=$8
+      WHERE id=$9
+      RETURNING *
+    `, [school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update teacher error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/teachers/:id
+router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM teachers WHERE id=$1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
+    res.json({ message: 'Teacher deleted successfully' });
+  } catch (err) {
+    console.error('Delete teacher error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

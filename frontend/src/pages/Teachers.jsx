@@ -16,31 +16,124 @@ const COUNTY_COLORS = {
   "Murang'a": '#1eb457',
 };
 
+const KENYA_COUNTIES = [
+  'Mombasa','Kwale','Kilifi','Tana River','Lamu','Taita-Taveta',
+  'Garissa','Wajir','Mandera','Marsabit','Isiolo','Meru',
+  'Tharaka-Nithi','Embu','Kitui','Machakos','Makueni','Nyandarua',
+  'Nyeri','Kirinyaga',"Murang'a",'Kiambu','Turkana','West Pokot',
+  'Samburu','Trans Nzoia','Uasin Gishu','Elgeyo-Marakwet','Nandi',
+  'Baringo','Laikipia','Nakuru','Narok','Kajiado','Kericho','Bomet',
+  'Kakamega','Vihiga','Bungoma','Busia','Siaya','Kisumu','Homa Bay',
+  'Migori','Kisii','Nyamira','Nairobi'
+];
+
+const EMPTY_FORM = {
+  school_id:'', full_name:'', role:'club_leader', phone:'',
+  email:'', ict_confidence:'beginner',
+  training_completed:false, safeguarding_done:false
+};
+
 export default function Teachers() {
   const [teachers, setTeachers] = useState([]);
+  const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterCounty, setFilterCounty] = useState('');
   const [filterTraining, setFilterTraining] = useState('');
   const [filterSafeguarding, setFilterSafeguarding] = useState('');
+  const [filterRole, setFilterRole] = useState('');
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState('full_name');
+  const [sortDir, setSortDir] = useState('asc');
+  const [showModal, setShowModal] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  useEffect(() => {
-    api.get('/teachers')
-      .then(res => setTeachers(res.data))
-      .catch(console.error)
+  const fetchData = () => {
+    setLoading(true);
+    Promise.all([
+      api.get('/teachers'),
+      api.get('/schools'),
+    ]).then(([t, s]) => {
+      setTeachers(t.data);
+      setSchools(s.data);
+    }).catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  const filtered = teachers.filter(t => {
-    if (filterCounty && t.county !== filterCounty) return false;
-    if (filterTraining === 'yes' && !t.training_completed) return false;
-    if (filterTraining === 'no' && t.training_completed) return false;
-    if (filterSafeguarding === 'yes' && !t.safeguarding_done) return false;
-    if (filterSafeguarding === 'no' && t.safeguarding_done) return false;
-    if (search && !t.full_name.toLowerCase().includes(search.toLowerCase()) &&
-        !t.school_name?.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  useEffect(() => { fetchData(); }, []);
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const openAdd = () => {
+    setEditingTeacher(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+
+  const openEdit = (teacher) => {
+    setEditingTeacher(teacher);
+    setForm({
+      school_id: teacher.school_id || '',
+      full_name: teacher.full_name || '',
+      role: teacher.role || 'club_leader',
+      phone: teacher.phone || '',
+      email: teacher.email || '',
+      ict_confidence: teacher.ict_confidence || 'beginner',
+      training_completed: teacher.training_completed || false,
+      safeguarding_done: teacher.safeguarding_done || false,
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editingTeacher) {
+        await api.put(`/teachers/${editingTeacher.id}`, form);
+      } else {
+        await api.post('/teachers', form);
+      }
+      setShowModal(false);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/teachers/${id}`);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete');
+    }
+  };
+
+  const filtered = teachers
+    .filter(t => {
+      if (filterCounty && t.county !== filterCounty) return false;
+      if (filterRole && t.role !== filterRole) return false;
+      if (filterTraining === 'yes' && !t.training_completed) return false;
+      if (filterTraining === 'no' && t.training_completed) return false;
+      if (filterSafeguarding === 'yes' && !t.safeguarding_done) return false;
+      if (filterSafeguarding === 'no' && t.safeguarding_done) return false;
+      if (search && !t.full_name.toLowerCase().includes(search.toLowerCase()) &&
+          !t.school_name?.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const av = a[sortKey] || '';
+      const bv = b[sortKey] || '';
+      return sortDir === 'asc' ? av > bv ? 1 : -1 : av < bv ? 1 : -1;
+    });
 
   const totalTraining = teachers.filter(t => t.training_completed).length;
   const totalSafeguarding = teachers.filter(t => t.safeguarding_done).length;
@@ -48,19 +141,24 @@ export default function Teachers() {
   const additional = teachers.filter(t => t.role === 'additional').length;
 
   const exportCSV = () => {
-    const headers = ['Name','Role','School','County','Area','Mentor','Training','Safeguarding'];
+    const headers = ['Name','Role','School','County','Area','Mentor','ICT','Training','Safeguarding'];
     const rows = filtered.map(t => [
-      t.full_name, t.role, t.school_name || '', t.county || '',
-      t.subcounty_area || '', t.mentor_name || '',
-      t.training_completed ? 'Yes' : 'No',
-      t.safeguarding_done ? 'Yes' : 'No',
+      t.full_name, t.role, t.school_name||'', t.county||'',
+      t.subcounty_area||'', t.mentor_name||'', t.ict_confidence||'',
+      t.training_completed?'Yes':'No', t.safeguarding_done?'Yes':'No',
     ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'teachers_export.csv'; a.click();
+    a.href=url; a.download='teachers_export.csv'; a.click();
   };
+
+  const SortTh = ({ label, sortK }) => (
+    <th style={{...styles.th, cursor:'pointer'}} onClick={() => handleSort(sortK)}>
+      {label} {sortKey === sortK ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+    </th>
+  );
 
   return (
     <Layout title="Teachers & Club Leaders" subtitle="Educators · Code Club facilitators · RPF 2026">
@@ -85,37 +183,37 @@ export default function Teachers() {
       {/* Filter Bar */}
       <div style={styles.filterBar}>
         <div style={styles.filters}>
-          <input
-            style={styles.search}
-            placeholder="🔍 Search teacher or school..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <select style={styles.select} value={filterCounty} onChange={e => setFilterCounty(e.target.value)}>
+          <input style={styles.search} placeholder="🔍 Search teacher or school..."
+            value={search} onChange={e => setSearch(e.target.value)} />
+          <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
             <option value="">All Counties</option>
-            <option value="Kiambu">Kiambu</option>
-            <option value="Kajiado">Kajiado</option>
-            <option value="Murang'a">Murang'a</option>
+            {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
-          <select style={styles.select} value={filterTraining} onChange={e => setFilterTraining(e.target.value)}>
+          <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
+            <option value="">All Roles</option>
+            <option value="club_leader">Club Leaders</option>
+            <option value="additional">Additional</option>
+          </select>
+          <select style={styles.select} value={filterTraining} onChange={e=>setFilterTraining(e.target.value)}>
             <option value="">All Training</option>
             <option value="yes">Training Complete</option>
             <option value="no">Not Trained</option>
           </select>
-          <select style={styles.select} value={filterSafeguarding} onChange={e => setFilterSafeguarding(e.target.value)}>
+          <select style={styles.select} value={filterSafeguarding} onChange={e=>setFilterSafeguarding(e.target.value)}>
             <option value="">All Safeguarding</option>
             <option value="yes">Safeguarding Done</option>
             <option value="no">Not Done</option>
           </select>
-          {(filterCounty || filterTraining || filterSafeguarding || search) && (
-            <button style={styles.clearBtn} onClick={() => {
-              setFilterCounty(''); setFilterTraining('');
-              setFilterSafeguarding(''); setSearch('');
+          {(filterCounty||filterRole||filterTraining||filterSafeguarding||search) && (
+            <button style={styles.clearBtn} onClick={()=>{
+              setFilterCounty('');setFilterRole('');setFilterTraining('');
+              setFilterSafeguarding('');setSearch('');
             }}>✕ Clear</button>
           )}
         </div>
         <div style={styles.actions}>
           <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
+          <button style={styles.addBtn} onClick={openAdd}>+ Add Teacher</button>
         </div>
       </div>
 
@@ -123,72 +221,71 @@ export default function Teachers() {
       <div style={styles.tableCard}>
         <div style={styles.tableHeader}>
           <p style={styles.tableTitle}>All teachers & club leaders — RPF 2026</p>
-          <p style={styles.tableSub}>{filtered.length} educators · live database</p>
+          <p style={styles.tableSub}>{filtered.length} of {teachers.length} educators · live database</p>
         </div>
-
-        {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
+        {loading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
           <table style={styles.table}>
             <thead>
               <tr style={styles.thead}>
-                <th style={styles.th}>TEACHER / CLUB LEADER</th>
+                <SortTh label="TEACHER / CLUB LEADER" sortK="full_name" />
                 <th style={styles.th}>ROLE</th>
-                <th style={styles.th}>SCHOOL</th>
-                <th style={styles.th}>COUNTY</th>
-                <th style={styles.th}>AREA</th>
-                <th style={styles.th}>MENTOR</th>
+                <SortTh label="SCHOOL" sortK="school_name" />
+                <SortTh label="COUNTY" sortK="county" />
+                <SortTh label="AREA" sortK="subcounty_area" />
+                <SortTh label="MENTOR" sortK="mentor_name" />
+                <th style={styles.th}>ICT LEVEL</th>
                 <th style={styles.th}>TRAINING</th>
                 <th style={styles.th}>SAFEGUARDING</th>
+                <th style={styles.th}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((teacher, i) => (
-                <tr key={teacher.id} style={{
-                  background: i % 2 === 0 ? '#fff' : '#fafafa',
-                  borderBottom: '1px solid #f0f0f0',
-                }}>
-                  <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>
-                    {teacher.full_name}
-                  </td>
+                <tr key={teacher.id} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
+                  <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{teacher.full_name}</td>
                   <td style={styles.td}>
-                    <span style={{
-                      ...styles.roleBadge,
-                      background: teacher.role === 'club_leader' ? '#e8f4fd' : '#f0f4f8',
-                      color: teacher.role === 'club_leader' ? '#2980b9' : '#666',
-                    }}>
-                      {teacher.role === 'club_leader' ? '⭐ Club Leader' : '+ Additional'}
+                    <span style={{...styles.roleBadge,
+                      background: teacher.role==='club_leader'?'#e8f4fd':'#f0f4f8',
+                      color: teacher.role==='club_leader'?'#2980b9':'#666'}}>
+                      {teacher.role==='club_leader'?'⭐ Club Leader':'+ Additional'}
                     </span>
                   </td>
-                  <td style={styles.td}>{teacher.school_name || '—'}</td>
+                  <td style={styles.td}>{teacher.school_name||'—'}</td>
                   <td style={styles.td}>
                     {teacher.county && (
-                      <span style={{
-                        ...styles.countyBadge,
-                        background: (COUNTY_COLORS[teacher.county] || '#888') + '20',
-                        color: COUNTY_COLORS[teacher.county] || '#888',
-                      }}>
+                      <span style={{...styles.countyBadge,
+                        background:(COUNTY_COLORS[teacher.county]||'#888')+'20',
+                        color:COUNTY_COLORS[teacher.county]||'#888'}}>
                         {teacher.county}
                       </span>
                     )}
                   </td>
-                  <td style={styles.td}>{teacher.subcounty_area || '—'}</td>
-                  <td style={styles.td}>{teacher.mentor_name || '—'}</td>
+                  <td style={styles.td}>{teacher.subcounty_area||'—'}</td>
+                  <td style={styles.td}>{teacher.mentor_name||'—'}</td>
                   <td style={styles.td}>
-                    <span style={{
-                      ...styles.checkBadge,
-                      background: teacher.training_completed ? '#eafaf1' : '#fef9e7',
-                      color: teacher.training_completed ? '#1a8a4a' : '#a0720a',
-                    }}>
-                      {teacher.training_completed ? '✅ Done' : '⏳ Pending'}
+                    <span style={{...styles.ictBadge,
+                      background: teacher.ict_confidence==='advanced'?'#eafaf1':teacher.ict_confidence==='intermediate'?'#fff3e0':'#f0f4ff',
+                      color: teacher.ict_confidence==='advanced'?'#1eb457':teacher.ict_confidence==='intermediate'?'#F7941D':'#3b5bdb'}}>
+                      {teacher.ict_confidence||'—'}
                     </span>
                   </td>
                   <td style={styles.td}>
-                    <span style={{
-                      ...styles.checkBadge,
-                      background: teacher.safeguarding_done ? '#eafaf1' : '#fdedec',
-                      color: teacher.safeguarding_done ? '#1a8a4a' : '#e74c3c',
-                    }}>
-                      {teacher.safeguarding_done ? '✅ Done' : '❌ Not done'}
+                    <span style={{...styles.checkBadge,
+                      background:teacher.training_completed?'#eafaf1':'#fef9e7',
+                      color:teacher.training_completed?'#1a8a4a':'#a0720a'}}>
+                      {teacher.training_completed?'✅ Done':'⏳ Pending'}
                     </span>
+                  </td>
+                  <td style={styles.td}>
+                    <span style={{...styles.checkBadge,
+                      background:teacher.safeguarding_done?'#eafaf1':'#fdedec',
+                      color:teacher.safeguarding_done?'#1a8a4a':'#e74c3c'}}>
+                      {teacher.safeguarding_done?'✅ Done':'❌ Not done'}
+                    </span>
+                  </td>
+                  <td style={styles.td}>
+                    <button style={styles.editBtn} onClick={()=>openEdit(teacher)}>✏️ Edit</button>
+                    <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(teacher)}>🗑️</button>
                   </td>
                 </tr>
               ))}
@@ -196,6 +293,96 @@ export default function Teachers() {
           </table>
         )}
       </div>
+
+      {/* Add / Edit Modal */}
+      {showModal && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>{editingTeacher?'✏️ Edit Teacher':'+ Add Teacher / Club Leader'}</h3>
+            <div style={styles.formGrid}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Full Name *</label>
+                <input style={styles.input} value={form.full_name}
+                  onChange={e=>setForm({...form,full_name:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>School *</label>
+                <select style={styles.input} value={form.school_id}
+                  onChange={e=>setForm({...form,school_id:e.target.value})}>
+                  <option value="">— Select School —</option>
+                  {schools.map(s=><option key={s.id} value={s.id}>{s.official_name} ({s.club_id})</option>)}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Role</label>
+                <select style={styles.input} value={form.role}
+                  onChange={e=>setForm({...form,role:e.target.value})}>
+                  <option value="club_leader">⭐ Club Leader</option>
+                  <option value="additional">+ Additional Teacher</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>ICT Confidence</label>
+                <select style={styles.input} value={form.ict_confidence}
+                  onChange={e=>setForm({...form,ict_confidence:e.target.value})}>
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Phone</label>
+                <input style={styles.input} value={form.phone}
+                  onChange={e=>setForm({...form,phone:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Email</label>
+                <input style={styles.input} type="email" value={form.email}
+                  onChange={e=>setForm({...form,email:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  <input type="checkbox" checked={form.training_completed}
+                    onChange={e=>setForm({...form,training_completed:e.target.checked})} />
+                  {' '}Training Completed
+                </label>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>
+                  <input type="checkbox" checked={form.safeguarding_done}
+                    onChange={e=>setForm({...form,safeguarding_done:e.target.checked})} />
+                  {' '}Safeguarding Done
+                </label>
+              </div>
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setShowModal(false)}>Cancel</button>
+              <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
+                {saving?'Saving...':editingTeacher?'Save Changes':'Add Teacher'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm */}
+      {deleteConfirm && (
+        <div style={styles.overlay}>
+          <div style={{...styles.modal, maxWidth:'400px'}}>
+            <h3 style={{color:'#e74c3c',margin:'0 0 12px'}}>⚠️ Delete Teacher</h3>
+            <p style={{color:'#555',margin:'0 0 20px'}}>
+              Are you sure you want to delete <strong>{deleteConfirm.full_name}</strong>? This cannot be undone.
+            </p>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setDeleteConfirm(null)}>Cancel</button>
+              <button style={{...styles.saveBtn,background:'#e74c3c'}} onClick={()=>handleDelete(deleteConfirm.id)}>
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }
@@ -213,6 +400,7 @@ const styles = {
   clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c' },
   actions: { display:'flex', gap:'10px' },
   exportBtn: { padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
+  addBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#2980b9', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
   tableCard: { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflow:'hidden' },
   tableHeader: { padding:'20px 24px', borderBottom:'1px solid #f0f0f0' },
   tableTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
@@ -223,5 +411,18 @@ const styles = {
   td: { padding:'12px 16px', fontSize:'13px', color:'#4a5568' },
   roleBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
   countyBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
+  ictBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600', textTransform:'capitalize' },
   checkBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
+  editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9', marginRight:'6px' },
+  deleteBtn: { padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
+  overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
+  modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'650px', maxHeight:'85vh', overflowY:'auto' },
+  modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
+  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
+  formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
+  label: { fontSize:'12px', fontWeight:'600', color:'#555' },
+  input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },
+  modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
+  cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
+  saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#2980b9', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
 };
