@@ -218,30 +218,7 @@ const handleSave = async () => {
     </th>
   );
 
-const Field = useCallback(({ label, fieldKey, type='text', children }) => (
-  <div style={styles.formGroup}>
-    <label style={styles.label}>
-      {label} <span style={{color:'#e74c3c'}}>*</span>
-    </label>
-    {children || (
-      <input
-        type={type}
-        style={{
-          ...styles.input,
-          border: formErrors[fieldKey] ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
-        }}
-        value={form[fieldKey]}
-        onChange={e => {
-          setForm(prev => ({...prev, [fieldKey]: type==='number' ? Number(e.target.value) : e.target.value}));
-          if (formErrors[fieldKey]) setFormErrors(prev => ({...prev, [fieldKey]: null}));
-        }}
-      />
-    )}
-    {formErrors[fieldKey] && (
-      <span style={{color:'#e74c3c', fontSize:'11px'}}>{formErrors[fieldKey]}</span>
-    )}
-  </div>
-), [form, formErrors]);
+
 
   return (
     <Layout title="Schools & Community Centres" subtitle="Enrolled venues · Live records">
@@ -369,12 +346,12 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
           {/* Section: Basic Info */}
 <p style={styles.sectionLabel}>📋 Basic Information</p>
 <div style={styles.formGrid}>
-  <Field label="Club ID" fieldKey="club_id" />
-  <Field label="Official Name" fieldKey="official_name" />
-  <Field label="Subcounty / Area" fieldKey="subcounty_area" />
-  <Field label="Learner Count" fieldKey="learner_count" type="number" />
-  <Field label="Notes" fieldKey="notes" />
-  <Field label="Type" fieldKey="type">
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Club ID" fieldKey="club_id" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Official Name" fieldKey="official_name" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Subcounty / Area" fieldKey="subcounty_area" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Learner Count" fieldKey="learner_count" type="number" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Notes" fieldKey="notes" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Type" fieldKey="type">
     <select style={{
       ...styles.input,
       border: formErrors.type ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
@@ -385,7 +362,7 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
     </select>
     {formErrors.type && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.type}</span>}
   </Field>
-  <Field label="County" fieldKey="county">
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="County" fieldKey="county">
     <select style={{
       ...styles.input,
       border: formErrors.county ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
@@ -395,7 +372,7 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
     </select>
     {formErrors.county && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.county}</span>}
   </Field>
-  <Field label="Status" fieldKey="status">
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Status" fieldKey="status">
     <select style={{
       ...styles.input,
       border: formErrors.status ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
@@ -407,7 +384,7 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
     </select>
     {formErrors.status && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.status}</span>}
   </Field>
-  <Field label="Referral Source" fieldKey="referral_source">
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Referral Source" fieldKey="referral_source">
     <select style={{
       ...styles.input,
       border: formErrors.referral_source ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
@@ -419,7 +396,7 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
     </select>
     {formErrors.referral_source && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.referral_source}</span>}
   </Field>
-  <Field label="Mentor" fieldKey="mentor_id">
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Mentor" fieldKey="mentor_id">
     <select style={{
       ...styles.input,
       border: formErrors.mentor_id ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
@@ -429,8 +406,8 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
     </select>
     {formErrors.mentor_id && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.mentor_id}</span>}
   </Field>
-  <Field label="Enrollment Date" fieldKey="enrollment_date" type="date" />
-  <Field label="Cohort" fieldKey="cohort" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Enrollment Date" fieldKey="enrollment_date" type="date" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Cohort" fieldKey="cohort" />
   <div style={styles.formGroup}>
     <label style={styles.label}>
       <input type="checkbox" checked={form.guidelines_signed}
@@ -443,11 +420,11 @@ const Field = useCallback(({ label, fieldKey, type='text', children }) => (
 {/* HOS Section */}
 <p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
 <div style={styles.formGrid}>
-  <Field label="HOS Name" fieldKey="hos_name" />
-  <Field label="HOS Phone" fieldKey="hos_phone" />
-  <Field label="HOS Email" fieldKey="hos_email" />
-  <Field label="Safeguarding Sponsor Name" fieldKey="safeguarding_sponsor" />
-  <Field label="Sponsor Phone" fieldKey="sponsor_phone" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="HOS Name" fieldKey="hos_name" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="HOS Phone" fieldKey="hos_phone" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="HOS Email" fieldKey="hos_email" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Safeguarding Sponsor Name" fieldKey="safeguarding_sponsor" />
+  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Sponsor Phone" fieldKey="sponsor_phone" />
 </div>
           
 {/* Section: Club Leader */}
@@ -602,3 +579,30 @@ const styles = {
   cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
 };
+
+function Field({ label, fieldKey, type='text', form, setForm, formErrors, setFormErrors, children }) {
+  return (
+    <div style={styles.formGroup}>
+      <label style={styles.label}>
+        {label} <span style={{color:'#e74c3c'}}>*</span>
+      </label>
+      {children || (
+        <input
+          type={type}
+          style={{
+            ...styles.input,
+            border: formErrors[fieldKey] ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+          }}
+          value={form[fieldKey]}
+          onChange={e => {
+            setForm(prev => ({...prev, [fieldKey]: type==='number' ? Number(e.target.value) : e.target.value}));
+            if (formErrors[fieldKey]) setFormErrors(prev => ({...prev, [fieldKey]: null}));
+          }}
+        />
+      )}
+      {formErrors[fieldKey] && (
+        <span style={{color:'#e74c3c', fontSize:'11px'}}>{formErrors[fieldKey]}</span>
+      )}
+    </div>
+  );
+}
