@@ -1,5 +1,4 @@
 // src/pages/Schools.jsx
-import { useEffect, useState } from 'react';
 import { getSchools, getMentors } from '../api/index';
 import axios from 'axios';
 import Layout from '../components/Layout';
