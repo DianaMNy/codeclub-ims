@@ -79,6 +79,12 @@ app.use('/api/donor', donorRoutes);
 const userRoutes = require('./routes/users');
 app.use('/api/users', userRoutes);
 
+const hosRoutes = require('./routes/hos');
+app.use('/api/hos', hosRoutes);
+
+const ecosystemExtrasRoutes = require('./routes/ecosystem_extras');
+app.use('/api/ecosystem-extras', ecosystemExtrasRoutes);
+
 // ── Start the server ──────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
