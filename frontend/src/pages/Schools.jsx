@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { getSchools, getMentors } from '../api/index';
 import axios from 'axios';
 import Layout from '../components/Layout';
+import { useEffect, useState, useCallback } from 'react';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -217,7 +218,8 @@ const handleSave = async () => {
       {label} {sortKey === sortK ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
     </th>
   );
-const Field = ({ label, fieldKey, type='text', children }) => (
+
+const Field = useCallback(({ label, fieldKey, type='text', children }) => (
   <div style={styles.formGroup}>
     <label style={styles.label}>
       {label} <span style={{color:'#e74c3c'}}>*</span>
@@ -231,8 +233,8 @@ const Field = ({ label, fieldKey, type='text', children }) => (
         }}
         value={form[fieldKey]}
         onChange={e => {
-          setForm({...form, [fieldKey]: type==='number' ? Number(e.target.value) : e.target.value});
-          if (formErrors[fieldKey]) setFormErrors({...formErrors, [fieldKey]: null});
+          setForm(prev => ({...prev, [fieldKey]: type==='number' ? Number(e.target.value) : e.target.value}));
+          if (formErrors[fieldKey]) setFormErrors(prev => ({...prev, [fieldKey]: null}));
         }}
       />
     )}
@@ -240,8 +242,7 @@ const Field = ({ label, fieldKey, type='text', children }) => (
       <span style={{color:'#e74c3c', fontSize:'11px'}}>{formErrors[fieldKey]}</span>
     )}
   </div>
-);
-
+), [form, formErrors]);
 
   return (
     <Layout title="Schools & Community Centres" subtitle="Enrolled venues · Live records">
