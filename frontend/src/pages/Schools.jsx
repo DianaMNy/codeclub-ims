@@ -417,15 +417,6 @@ const handleSave = async () => {
   </div>
 </div>
 
-{/* HOS Section */}
-<p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
-<div style={styles.formGrid}>
-  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="HOS Name" fieldKey="hos_name" />
-  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="HOS Phone" fieldKey="hos_phone" />
-  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="HOS Email" fieldKey="hos_email" />
-  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Safeguarding Sponsor Name" fieldKey="safeguarding_sponsor" />
-  <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Sponsor Phone" fieldKey="sponsor_phone" />
-</div>
           
 {/* Section: Club Leader */}
 <p style={styles.sectionLabel}>⭐ Club Leader</p>
