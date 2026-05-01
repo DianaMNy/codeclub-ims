@@ -28,15 +28,14 @@ const KENYA_COUNTIES = [
   'Migori','Kisii','Nyamira','Nairobi'
 ];
 
-
-
 const EMPTY_FORM = {
   club_id:'', official_name:'', type:'school', county:'Kiambu',
   subcounty_area:'', referral_source:'', club_leader_name:'',
   club_leader_phone:'', club_leader_email:'', safeguarding_sponsor:'',
   sponsor_phone:'', learner_count:0, status:'enrolled',
   guidelines_signed:false, notes:'', mentor_id:'',
-  enrollment_date:'', cohort:'RPF 2026'
+  enrollment_date:'', cohort:'RPF 2026',
+  hos_name:'', hos_phone:'', hos_email:''
 };
 
 export default function Schools() {
@@ -46,6 +45,7 @@ export default function Schools() {
   const [filterCounty, setFilterCounty] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMentor, setFilterMentor] = useState('');
+  const [filterType, setFilterType] = useState('');
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingSchool, setEditingSchool] = useState(null);
@@ -54,7 +54,6 @@ export default function Schools() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [sortKey, setSortKey] = useState('official_name');
   const [sortDir, setSortDir] = useState('asc');
-  const [filterType, setFilterType] = useState('');
 
   const fetchData = () => {
     setLoading(true);
@@ -98,6 +97,9 @@ export default function Schools() {
       mentor_id: school.mentor_id || '',
       enrollment_date: school.enrollment_date ? school.enrollment_date.split('T')[0] : '',
       cohort: school.cohort || 'RPF 2026',
+      hos_name: school.hos_name || '',
+      hos_phone: school.hos_phone || '',
+      hos_email: school.hos_email || '',
     });
     setShowModal(true);
   };
@@ -113,8 +115,8 @@ export default function Schools() {
       setShowModal(false);
       fetchData();
     } catch (err) {
-  alert(err.response?.data?.error || err.message);
-}finally {
+      alert(err.response?.data?.error || err.message);
+    } finally {
       setSaving(false);
     }
   };
@@ -150,14 +152,13 @@ export default function Schools() {
   const centres = schools.filter(s => s.type === 'community_centre').length;
   const totalLearners = schools.reduce((sum, s) => sum + (s.learner_count || 0), 0);
   const mentorNames = [...new Set(schools.map(s => s.mentor_name).filter(Boolean))].sort();
-  
 
   const exportCSV = () => {
-    const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','Learners','Status','Enrolled','Cohort','Guidelines'];
+    const headers = ['Club ID','School Name','Type','County','Area','Mentor','Club Leader','HOS','Learners','Status','Enrolled','Cohort','Guidelines'];
     const rows = filtered.map(s => [
       s.club_id||'', s.official_name, s.type, s.county,
       s.subcounty_area||'', s.mentor_name||'', s.club_leader_name||'',
-      s.learner_count||0, s.status,
+      s.hos_name||'', s.learner_count||0, s.status,
       s.enrollment_date ? s.enrollment_date.split('T')[0] : '',
       s.cohort||'', s.guidelines_signed ? 'Yes' : 'No',
     ]);
@@ -197,17 +198,12 @@ export default function Schools() {
       {/* Filter Bar */}
       <div style={styles.filterBar}>
         <div style={styles.filters}>
-          <input
-            style={{...styles.select, width:'200px'}}
+          <input style={{...styles.select, width:'200px'}}
             placeholder="🔍 Search school name..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+            value={search} onChange={e => setSearch(e.target.value)} />
           <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
             <option value="">All Counties</option>
             {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <select style={styles.select} value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}>
             <option value="">All Statuses</option>
@@ -215,22 +211,20 @@ export default function Schools() {
             <option value="enrolled">Not Started</option>
           </select>
           <select style={styles.select} value={filterType} onChange={e=>setFilterType(e.target.value)}>
-  <option value="">All Types</option>
-  <option value="school">Schools Only</option>
-  <option value="community_centre">Centres Only</option>
-</select>
-       <select style={styles.select} value={filterMentor} onChange={e=>setFilterMentor(e.target.value)}>
-  <option value="">All Mentors</option>
-  {mentorNames.map(m=><option key={m} value={m}>{m}</option>)}
-</select>
-<select style={styles.select} value={filterType} onChange={e=>setFilterType(e.target.value)}>
-  <option value="">All Types</option>
-  <option value="school">Schools Only</option>
-  <option value="community_centre">Centres Only</option>
-</select>
-{(filterCounty||filterStatus||filterMentor||search||filterType) && (
-  <button style={styles.clearBtn} onClick={()=>{setFilterCounty('');setFilterStatus('');setFilterMentor('');setSearch('');setFilterType('');}}>✕ Clear</button>
-)}
+            <option value="">All Types</option>
+            <option value="school">Schools Only</option>
+            <option value="community_centre">Centres Only</option>
+          </select>
+          <select style={styles.select} value={filterMentor} onChange={e=>setFilterMentor(e.target.value)}>
+            <option value="">All Mentors</option>
+            {mentorNames.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+          {(filterCounty||filterStatus||filterMentor||search||filterType) && (
+            <button style={styles.clearBtn} onClick={()=>{
+              setFilterCounty('');setFilterStatus('');setFilterMentor('');
+              setSearch('');setFilterType('');
+            }}>✕ Clear</button>
+          )}
         </div>
         <div style={styles.actions}>
           <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
@@ -242,7 +236,7 @@ export default function Schools() {
       <div style={styles.tableCard}>
         <div style={styles.tableHeader}>
           <p style={styles.tableTitle}>All schools & community centres — RPF 2026</p>
-          <p style={styles.tableSub}>{filtered.length} of {schools.length} records · {centres} community centres · 3 counties · live database</p>
+          <p style={styles.tableSub}>{filtered.length} of {schools.length} records · {centres} community centres · live database</p>
         </div>
         {loading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
           <table style={styles.table}>
@@ -254,6 +248,7 @@ export default function Schools() {
                 <SortTh label="AREA" sortK="subcounty_area" />
                 <SortTh label="MENTOR" sortK="mentor_name" />
                 <SortTh label="CLUB LEADER" sortK="club_leader_name" />
+                <SortTh label="HEAD OF SCHOOL" sortK="hos_name" />
                 <SortTh label="LEARNERS" sortK="learner_count" />
                 <SortTh label="ENROLLED" sortK="enrollment_date" />
                 <th style={styles.th}>COHORT</th>
@@ -264,7 +259,7 @@ export default function Schools() {
             </thead>
             <tbody>
               {filtered.map((school, i) => (
-                <tr key={school.id} style={{background: i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
+                <tr key={school.id} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
                   <td style={styles.td}><span style={styles.clubId}>{school.club_id||'—'}</span></td>
                   <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{school.official_name}</td>
                   <td style={styles.td}>
@@ -275,6 +270,7 @@ export default function Schools() {
                   <td style={styles.td}>{school.subcounty_area||'—'}</td>
                   <td style={styles.td}>{school.mentor_name||'—'}</td>
                   <td style={styles.td}>{school.club_leader_name||'—'}</td>
+                  <td style={styles.td}>{school.hos_name||'—'}</td>
                   <td style={styles.td}>{school.learner_count||0}</td>
                   <td style={styles.td}>{school.enrollment_date ? new Date(school.enrollment_date).toLocaleDateString('en-KE') : '—'}</td>
                   <td style={styles.td}><span style={styles.cohortBadge}>{school.cohort||'RPF 2026'}</span></td>
@@ -300,48 +296,23 @@ export default function Schools() {
         <div style={styles.overlay}>
           <div style={styles.modal}>
             <h3 style={styles.modalTitle}>{editingSchool ? '✏️ Edit School' : '+ Enrol School / Centre'}</h3>
+
+            {/* Section: Basic Info */}
+            <p style={styles.sectionLabel}>📋 Basic Information</p>
             <div style={styles.formGrid}>
               {[
                 {label:'Club ID', key:'club_id'},
                 {label:'Official Name *', key:'official_name'},
-                {label:'Club Leader Name', key:'club_leader_name'},
-                {label:'Club Leader Phone', key:'club_leader_phone'},
-                {label:'Club Leader Email', key:'club_leader_email'},
-                {label:'Safeguarding Sponsor', key:'safeguarding_sponsor'},
-                {label:'Sponsor Phone', key:'sponsor_phone'},
                 {label:'Subcounty / Area', key:'subcounty_area'},
                 {label:'Learner Count', key:'learner_count', type:'number'},
                 {label:'Notes', key:'notes'},
               ].map(({label, key, type='text'}) => (
                 <div key={key} style={styles.formGroup}>
                   <label style={styles.label}>{label}</label>
-                  <input
-                    type={type}
-                    style={styles.input}
-                    value={form[key]}
-                    onChange={e=>setForm({...form, [key]: type==='number'?Number(e.target.value):e.target.value})}
-                  />
+                  <input type={type} style={styles.input} value={form[key]}
+                    onChange={e=>setForm({...form,[key]:type==='number'?Number(e.target.value):e.target.value})} />
                 </div>
               ))}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Enrollment Date</label>
-                <input type="date" style={styles.input} value={form.enrollment_date}
-                  onChange={e=>setForm({...form,enrollment_date:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Cohort</label>
-                <input type="text" style={styles.input} value={form.cohort}
-                  onChange={e=>setForm({...form,cohort:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Referral Source</label>
-                <select style={styles.input} value={form.referral_source} onChange={e=>setForm({...form,referral_source:e.target.value})}>
-                  <option value="">— Select —</option>
-                  <option value="ministry">Ministry</option>
-                  <option value="self">Self</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Type</label>
                 <select style={styles.input} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
@@ -352,9 +323,7 @@ export default function Schools() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>County</label>
                 <select style={styles.input} value={form.county} onChange={e=>setForm({...form,county:e.target.value})}>
-                 {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-           {KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div style={styles.formGroup}>
@@ -366,11 +335,30 @@ export default function Schools() {
                 </select>
               </div>
               <div style={styles.formGroup}>
+                <label style={styles.label}>Referral Source</label>
+                <select style={styles.input} value={form.referral_source} onChange={e=>setForm({...form,referral_source:e.target.value})}>
+                  <option value="">— Select —</option>
+                  <option value="ministry">Ministry</option>
+                  <option value="self">Self</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
                 <label style={styles.label}>Mentor</label>
                 <select style={styles.input} value={form.mentor_id} onChange={e=>setForm({...form,mentor_id:e.target.value})}>
                   <option value="">— No mentor assigned —</option>
                   {mentors.map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}
                 </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Enrollment Date</label>
+                <input type="date" style={styles.input} value={form.enrollment_date}
+                  onChange={e=>setForm({...form,enrollment_date:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Cohort</label>
+                <input type="text" style={styles.input} value={form.cohort}
+                  onChange={e=>setForm({...form,cohort:e.target.value})} />
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>
@@ -380,6 +368,41 @@ export default function Schools() {
                 </label>
               </div>
             </div>
+
+            {/* Section: Club Leader */}
+            <p style={styles.sectionLabel}>⭐ Club Leader</p>
+            <div style={styles.formGrid}>
+              {[
+                {label:'Club Leader Name', key:'club_leader_name'},
+                {label:'Club Leader Phone', key:'club_leader_phone'},
+                {label:'Club Leader Email', key:'club_leader_email'},
+              ].map(({label, key}) => (
+                <div key={key} style={styles.formGroup}>
+                  <label style={styles.label}>{label}</label>
+                  <input style={styles.input} value={form[key]}
+                    onChange={e=>setForm({...form,[key]:e.target.value})} />
+                </div>
+              ))}
+            </div>
+
+            {/* Section: Head of School */}
+            <p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
+            <div style={styles.formGrid}>
+              {[
+                {label:'HOS Name', key:'hos_name'},
+                {label:'HOS Phone', key:'hos_phone'},
+                {label:'HOS Email', key:'hos_email'},
+                {label:'Safeguarding Sponsor Name', key:'safeguarding_sponsor'},
+                {label:'Sponsor Phone', key:'sponsor_phone'},
+              ].map(({label, key}) => (
+                <div key={key} style={styles.formGroup}>
+                  <label style={styles.label}>{label}</label>
+                  <input style={styles.input} value={form[key]}
+                    onChange={e=>setForm({...form,[key]:e.target.value})} />
+                </div>
+              ))}
+            </div>
+
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(false)}>Cancel</button>
               <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
@@ -441,6 +464,7 @@ const styles = {
   overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
   modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'700px', maxHeight:'85vh', overflowY:'auto' },
   modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
+  sectionLabel: { fontSize:'13px', fontWeight:'700', color:'#1a2332', margin:'0 0 12px 0', paddingBottom:'6px', borderBottom:'2px solid #f0f0f0' },
   formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
   formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
