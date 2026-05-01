@@ -377,36 +377,49 @@ const [hosList, setHosList] = useState([]);
               </div>
             </div>
 
-           {/* Section: Club Leader */}
+          
+{/* Section: Club Leader */}
 <p style={styles.sectionLabel}>⭐ Club Leader</p>
-<div style={styles.formGrid}>
-  <div style={{...styles.formGroup, gridColumn:'1/-1'}}>
-    <label style={styles.label}>Select Club Leader (from Teachers)</label>
-    <select style={styles.input} value={form.club_leader_name}
-      onChange={e => {
-        const teacher = teachers.find(t => t.full_name === e.target.value);
-        setForm({...form,
-          club_leader_name: e.target.value,
-          club_leader_phone: teacher?.phone || form.club_leader_phone,
-          club_leader_email: teacher?.email || form.club_leader_email,
-        });
-      }}>
-      <option value="">— Select Club Leader —</option>
-      {teachers.filter(t => t.role === 'club_leader').map(t => (
-        <option key={t.id} value={t.full_name}>{t.full_name} — {t.school_name||'unassigned'}</option>
-      ))}
-    </select>
-  </div>
-  <div style={styles.formGroup}>
-    <label style={styles.label}>Club Leader Phone</label>
-    <input style={styles.input} value={form.club_leader_phone}
-      onChange={e=>setForm({...form,club_leader_phone:e.target.value})} />
-  </div>
-  <div style={styles.formGroup}>
-    <label style={styles.label}>Club Leader Email</label>
-    <input style={styles.input} value={form.club_leader_email}
-      onChange={e=>setForm({...form,club_leader_email:e.target.value})} />
-  </div>
+<div style={{...styles.formGrid, marginBottom:'24px'}}>
+  {editingSchool ? (
+    <>
+      <div style={styles.formGroup}>
+        <label style={styles.label}>Club Leader Name</label>
+        <select style={styles.input} value={form.club_leader_name}
+          onChange={e => {
+            const teacher = teachers.find(t => t.full_name === e.target.value);
+            setForm({...form,
+              club_leader_name: e.target.value,
+              club_leader_phone: teacher?.phone || form.club_leader_phone,
+              club_leader_email: teacher?.email || form.club_leader_email,
+            });
+          }}>
+          <option value="">— Select Club Leader —</option>
+          {teachers.filter(t => t.role === 'club_leader').map(t => (
+            <option key={t.id} value={t.full_name}>
+              {t.full_name} — {t.school_name||'unassigned'}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div style={styles.formGroup}>
+        <label style={styles.label}>Club Leader Phone</label>
+        <input style={styles.input} value={form.club_leader_phone}
+          onChange={e=>setForm({...form,club_leader_phone:e.target.value})} />
+      </div>
+      <div style={styles.formGroup}>
+        <label style={styles.label}>Club Leader Email</label>
+        <input style={styles.input} value={form.club_leader_email}
+          onChange={e=>setForm({...form,club_leader_email:e.target.value})} />
+      </div>
+    </>
+  ) : (
+    <div style={{gridColumn:'1/-1', background:'#f0f4ff', borderRadius:'10px', padding:'14px'}}>
+      <p style={{margin:0, fontSize:'13px', color:'#3b5bdb'}}>
+        ℹ️ <strong>After enrolling this school</strong>, go to the <strong>Teachers tab</strong> and add a Club Leader — they will be automatically linked to this school.
+      </p>
+    </div>
+  )}
 </div>
 
 {/* Section: Head of School */}
