@@ -55,13 +55,21 @@ export default function Schools() {
   const [sortKey, setSortKey] = useState('official_name');
   const [sortDir, setSortDir] = useState('asc');
 
+  const [teachers, setTeachers] = useState([]);
+const [hosList, setHosList] = useState([]);
+
   const fetchData = () => {
-    setLoading(true);
-    Promise.all([getSchools(), getMentors()])
-      .then(([s, m]) => { setSchools(s.data); setMentors(m.data); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  setLoading(true);
+  Promise.all([getSchools(), getMentors(), api.get('/teachers'), api.get('/hos')])
+    .then(([s, m, t, h]) => {
+      setSchools(s.data);
+      setMentors(m.data);
+      setTeachers(t.data);
+      setHosList(h.data);
+    })
+    .catch(console.error)
+    .finally(() => setLoading(false));
+};
 
   useEffect(() => { fetchData(); }, []);
 
@@ -369,39 +377,75 @@ export default function Schools() {
               </div>
             </div>
 
-            {/* Section: Club Leader */}
-            <p style={styles.sectionLabel}>⭐ Club Leader</p>
-            <div style={styles.formGrid}>
-              {[
-                {label:'Club Leader Name', key:'club_leader_name'},
-                {label:'Club Leader Phone', key:'club_leader_phone'},
-                {label:'Club Leader Email', key:'club_leader_email'},
-              ].map(({label, key}) => (
-                <div key={key} style={styles.formGroup}>
-                  <label style={styles.label}>{label}</label>
-                  <input style={styles.input} value={form[key]}
-                    onChange={e=>setForm({...form,[key]:e.target.value})} />
-                </div>
-              ))}
-            </div>
+           {/* Section: Club Leader */}
+<p style={styles.sectionLabel}>⭐ Club Leader</p>
+<div style={styles.formGrid}>
+  <div style={{...styles.formGroup, gridColumn:'1/-1'}}>
+    <label style={styles.label}>Select Club Leader (from Teachers)</label>
+    <select style={styles.input} value={form.club_leader_name}
+      onChange={e => {
+        const teacher = teachers.find(t => t.full_name === e.target.value);
+        setForm({...form,
+          club_leader_name: e.target.value,
+          club_leader_phone: teacher?.phone || form.club_leader_phone,
+          club_leader_email: teacher?.email || form.club_leader_email,
+        });
+      }}>
+      <option value="">— Select Club Leader —</option>
+      {teachers.filter(t => t.role === 'club_leader').map(t => (
+        <option key={t.id} value={t.full_name}>{t.full_name} — {t.school_name||'unassigned'}</option>
+      ))}
+    </select>
+  </div>
+  <div style={styles.formGroup}>
+    <label style={styles.label}>Club Leader Phone</label>
+    <input style={styles.input} value={form.club_leader_phone}
+      onChange={e=>setForm({...form,club_leader_phone:e.target.value})} />
+  </div>
+  <div style={styles.formGroup}>
+    <label style={styles.label}>Club Leader Email</label>
+    <input style={styles.input} value={form.club_leader_email}
+      onChange={e=>setForm({...form,club_leader_email:e.target.value})} />
+  </div>
+</div>
 
-            {/* Section: Head of School */}
-            <p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
-            <div style={styles.formGrid}>
-              {[
-                {label:'HOS Name', key:'hos_name'},
-                {label:'HOS Phone', key:'hos_phone'},
-                {label:'HOS Email', key:'hos_email'},
-                {label:'Safeguarding Sponsor Name', key:'safeguarding_sponsor'},
-                {label:'Sponsor Phone', key:'sponsor_phone'},
-              ].map(({label, key}) => (
-                <div key={key} style={styles.formGroup}>
-                  <label style={styles.label}>{label}</label>
-                  <input style={styles.input} value={form[key]}
-                    onChange={e=>setForm({...form,[key]:e.target.value})} />
-                </div>
-              ))}
-            </div>
+{/* Section: Head of School */}
+<p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
+<div style={styles.formGrid}>
+  <div style={{...styles.formGroup, gridColumn:'1/-1'}}>
+    <label style={styles.label}>Select Head of School</label>
+    <select style={styles.input} value={form.hos_name}
+      onChange={e => {
+        const hos = hosList.find(h => h.full_name === e.target.value);
+        setForm({...form,
+          hos_name: e.target.value,
+          hos_phone: hos?.phone || form.hos_phone,
+          hos_email: hos?.email || form.hos_email,
+          safeguarding_sponsor: e.target.value,
+        });
+      }}>
+      <option value="">— Select HOS —</option>
+      {hosList.map(h => (
+        <option key={h.id} value={h.full_name}>{h.full_name} — {h.school_name||'unassigned'}</option>
+      ))}
+    </select>
+  </div>
+  <div style={styles.formGroup}>
+    <label style={styles.label}>HOS Phone</label>
+    <input style={styles.input} value={form.hos_phone}
+      onChange={e=>setForm({...form,hos_phone:e.target.value})} />
+  </div>
+  <div style={styles.formGroup}>
+    <label style={styles.label}>HOS Email</label>
+    <input style={styles.input} value={form.hos_email}
+      onChange={e=>setForm({...form,hos_email:e.target.value})} />
+  </div>
+  <div style={styles.formGroup}>
+    <label style={styles.label}>Sponsor Phone</label>
+    <input style={styles.input} value={form.sponsor_phone}
+      onChange={e=>setForm({...form,sponsor_phone:e.target.value})} />
+  </div>
+</div>
 
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(false)}>Cancel</button>
