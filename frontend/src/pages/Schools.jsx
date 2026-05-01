@@ -81,11 +81,13 @@ const [hosList, setHosList] = useState([]);
   const openEnrol = () => {
     setEditingSchool(null);
     setForm(EMPTY_FORM);
+     setFormErrors({});  // ← add this
     setShowModal(true);
   };
 
   const openEdit = (school) => {
     setEditingSchool(school);
+    setFormErrors({});  // ← add this
     setForm({
       club_id: school.club_id || '',
       official_name: school.official_name || '',
@@ -112,22 +114,55 @@ const [hosList, setHosList] = useState([]);
     setShowModal(true);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      if (editingSchool) {
-        await api.put(`/schools/${editingSchool.id}`, form);
-      } else {
-        await api.post('/schools', form);
-      }
-      setShowModal(false);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.error || err.message);
-    } finally {
-      setSaving(false);
+  const validateForm = () => {
+  const errors = {};
+  
+  // Basic Info
+  if (!form.official_name.trim()) errors.official_name = 'Required';
+  if (!form.county) errors.county = 'Required';
+  if (!form.type) errors.type = 'Required';
+  if (!form.subcounty_area.trim()) errors.subcounty_area = 'Required';
+  if (!form.status) errors.status = 'Required';
+  if (!form.mentor_id) errors.mentor_id = 'Required';
+  if (!form.enrollment_date) errors.enrollment_date = 'Required';
+  if (!form.cohort.trim()) errors.cohort = 'Required';
+  if (!form.referral_source) errors.referral_source = 'Required';
+  if (!form.learner_count || form.learner_count < 1) errors.learner_count = 'Must be at least 1';
+
+  // HOS — only required for schools, not community centres
+  if (form.type === 'school') {
+    if (!form.hos_name?.trim()) errors.hos_name = 'Required for schools';
+    if (!form.hos_phone?.trim()) errors.hos_phone = 'Required';
+  }
+
+  return errors;
+};
+
+const [formErrors, setFormErrors] = useState({});
+
+
+const handleSave = async () => {
+  const errors = validateForm();
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    return;
+  }
+  setFormErrors({});
+  setSaving(true);
+  try {
+    if (editingSchool) {
+      await api.put(`/schools/${editingSchool.id}`, form);
+    } else {
+      await api.post('/schools', form);
     }
-  };
+    setShowModal(false);
+    fetchData();
+  } catch (err) {
+    alert(err.response?.data?.error || err.message);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDelete = async (id) => {
     try {
@@ -182,6 +217,31 @@ const [hosList, setHosList] = useState([]);
       {label} {sortKey === sortK ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
     </th>
   );
+const Field = ({ label, fieldKey, type='text', children }) => (
+  <div style={styles.formGroup}>
+    <label style={styles.label}>
+      {label} <span style={{color:'#e74c3c'}}>*</span>
+    </label>
+    {children || (
+      <input
+        type={type}
+        style={{
+          ...styles.input,
+          border: formErrors[fieldKey] ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+        }}
+        value={form[fieldKey]}
+        onChange={e => {
+          setForm({...form, [fieldKey]: type==='number' ? Number(e.target.value) : e.target.value});
+          if (formErrors[fieldKey]) setFormErrors({...formErrors, [fieldKey]: null});
+        }}
+      />
+    )}
+    {formErrors[fieldKey] && (
+      <span style={{color:'#e74c3c', fontSize:'11px'}}>{formErrors[fieldKey]}</span>
+    )}
+  </div>
+);
+
 
   return (
     <Layout title="Schools & Community Centres" subtitle="Enrolled venues · Live records">
@@ -306,77 +366,89 @@ const [hosList, setHosList] = useState([]);
             <h3 style={styles.modalTitle}>{editingSchool ? '✏️ Edit School' : '+ Enrol School / Centre'}</h3>
 
             {/* Section: Basic Info */}
-            <p style={styles.sectionLabel}>📋 Basic Information</p>
-            <div style={styles.formGrid}>
-              {[
-                {label:'Club ID', key:'club_id'},
-                {label:'Official Name *', key:'official_name'},
-                {label:'Subcounty / Area', key:'subcounty_area'},
-                {label:'Learner Count', key:'learner_count', type:'number'},
-                {label:'Notes', key:'notes'},
-              ].map(({label, key, type='text'}) => (
-                <div key={key} style={styles.formGroup}>
-                  <label style={styles.label}>{label}</label>
-                  <input type={type} style={styles.input} value={form[key]}
-                    onChange={e=>setForm({...form,[key]:type==='number'?Number(e.target.value):e.target.value})} />
-                </div>
-              ))}
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Type</label>
-                <select style={styles.input} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
-                  <option value="school">School</option>
-                  <option value="community_centre">Community Centre</option>
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>County</label>
-                <select style={styles.input} value={form.county} onChange={e=>setForm({...form,county:e.target.value})}>
-                  {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Status</label>
-                <select style={styles.input} value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
-                  <option value="enrolled">Not Started</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Referral Source</label>
-                <select style={styles.input} value={form.referral_source} onChange={e=>setForm({...form,referral_source:e.target.value})}>
-                  <option value="">— Select —</option>
-                  <option value="ministry">Ministry</option>
-                  <option value="self">Self</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Mentor</label>
-                <select style={styles.input} value={form.mentor_id} onChange={e=>setForm({...form,mentor_id:e.target.value})}>
-                  <option value="">— No mentor assigned —</option>
-                  {mentors.map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Enrollment Date</label>
-                <input type="date" style={styles.input} value={form.enrollment_date}
-                  onChange={e=>setForm({...form,enrollment_date:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Cohort</label>
-                <input type="text" style={styles.input} value={form.cohort}
-                  onChange={e=>setForm({...form,cohort:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  <input type="checkbox" checked={form.guidelines_signed}
-                    onChange={e=>setForm({...form,guidelines_signed:e.target.checked})} />
-                  {' '}Guidelines Signed
-                </label>
-              </div>
-            </div>
+          {/* Section: Basic Info */}
+<p style={styles.sectionLabel}>📋 Basic Information</p>
+<div style={styles.formGrid}>
+  <Field label="Club ID" fieldKey="club_id" />
+  <Field label="Official Name" fieldKey="official_name" />
+  <Field label="Subcounty / Area" fieldKey="subcounty_area" />
+  <Field label="Learner Count" fieldKey="learner_count" type="number" />
+  <Field label="Notes" fieldKey="notes" />
+  <Field label="Type" fieldKey="type">
+    <select style={{
+      ...styles.input,
+      border: formErrors.type ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+    }} value={form.type} onChange={e=>{setForm({...form,type:e.target.value}); setFormErrors({...formErrors,type:null});}}>
+      <option value="">— Select —</option>
+      <option value="school">School</option>
+      <option value="community_centre">Community Centre</option>
+    </select>
+    {formErrors.type && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.type}</span>}
+  </Field>
+  <Field label="County" fieldKey="county">
+    <select style={{
+      ...styles.input,
+      border: formErrors.county ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+    }} value={form.county} onChange={e=>{setForm({...form,county:e.target.value}); setFormErrors({...formErrors,county:null});}}>
+      <option value="">— Select —</option>
+      {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
+    </select>
+    {formErrors.county && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.county}</span>}
+  </Field>
+  <Field label="Status" fieldKey="status">
+    <select style={{
+      ...styles.input,
+      border: formErrors.status ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+    }} value={form.status} onChange={e=>{setForm({...form,status:e.target.value}); setFormErrors({...formErrors,status:null});}}>
+      <option value="">— Select —</option>
+      <option value="enrolled">Not Started</option>
+      <option value="active">Active</option>
+      <option value="inactive">Inactive</option>
+    </select>
+    {formErrors.status && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.status}</span>}
+  </Field>
+  <Field label="Referral Source" fieldKey="referral_source">
+    <select style={{
+      ...styles.input,
+      border: formErrors.referral_source ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+    }} value={form.referral_source} onChange={e=>{setForm({...form,referral_source:e.target.value}); setFormErrors({...formErrors,referral_source:null});}}>
+      <option value="">— Select —</option>
+      <option value="ministry">Ministry</option>
+      <option value="self">Self</option>
+      <option value="other">Other</option>
+    </select>
+    {formErrors.referral_source && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.referral_source}</span>}
+  </Field>
+  <Field label="Mentor" fieldKey="mentor_id">
+    <select style={{
+      ...styles.input,
+      border: formErrors.mentor_id ? '1.5px solid #e74c3c' : '1.5px solid #e2e8f0'
+    }} value={form.mentor_id} onChange={e=>{setForm({...form,mentor_id:e.target.value}); setFormErrors({...formErrors,mentor_id:null});}}>
+      <option value="">— Select Mentor —</option>
+      {mentors.map(m=><option key={m.id} value={m.id}>{m.full_name}</option>)}
+    </select>
+    {formErrors.mentor_id && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.mentor_id}</span>}
+  </Field>
+  <Field label="Enrollment Date" fieldKey="enrollment_date" type="date" />
+  <Field label="Cohort" fieldKey="cohort" />
+  <div style={styles.formGroup}>
+    <label style={styles.label}>
+      <input type="checkbox" checked={form.guidelines_signed}
+        onChange={e=>setForm({...form,guidelines_signed:e.target.checked})} />
+      {' '}Guidelines Signed
+    </label>
+  </div>
+</div>
 
+{/* HOS Section */}
+<p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
+<div style={styles.formGrid}>
+  <Field label="HOS Name" fieldKey="hos_name" />
+  <Field label="HOS Phone" fieldKey="hos_phone" />
+  <Field label="HOS Email" fieldKey="hos_email" />
+  <Field label="Safeguarding Sponsor Name" fieldKey="safeguarding_sponsor" />
+  <Field label="Sponsor Phone" fieldKey="sponsor_phone" />
+</div>
           
 {/* Section: Club Leader */}
 <p style={styles.sectionLabel}>⭐ Club Leader</p>
