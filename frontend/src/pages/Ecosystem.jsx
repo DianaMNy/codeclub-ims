@@ -60,6 +60,8 @@ export default function Ecosystem() {
   const [extraForm, setExtraForm] = useState(EMPTY_EXTRA);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+ 
+ 
 
   const fetchData = async () => {
     setLoading(true);
@@ -74,6 +76,7 @@ export default function Ecosystem() {
       setHosList(h.data);
       setExtras(e.data);
       setSchools(s.data);
+      
     } catch (err) {
       console.error(err);
     } finally {
@@ -308,7 +311,7 @@ export default function Ecosystem() {
         </div>
         <div style={styles.actions}>
           <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
-          <button style={styles.hosBtn} onClick={openAddHos}>+ Add HOS</button>
+          <button style={styles.hosBtn} onClick={openAddHos}>+ Add HOS / Centre Manager</button>
           <button style={styles.addBtn} onClick={openAddExtra}>+ Add ICT/Director</button>
         </div>
       </div>
@@ -387,7 +390,13 @@ export default function Ecosystem() {
       {showModal === 'hos' && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>{editingItem ? '✏️ Edit Head of School' : '+ Add Head of School'}</h3>
+           <h3 style={styles.modalTitle}>
+  {editingItem ? '✏️ Edit' : '+'} {
+    hosForm.school_id && schools.find(s => s.id === hosForm.school_id)?.type === 'community_centre'
+      ? 'Centre Manager'
+      : 'Head of School'
+  }
+</h3>
             <div style={styles.formGrid}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Full Name *</label>
@@ -395,7 +404,9 @@ export default function Ecosystem() {
                   onChange={e=>setHosForm({...hosForm,full_name:e.target.value})} />
               </div>
               <div style={styles.formGroup}>
-                <label style={styles.label}>School</label>
+              <label style={styles.label}>
+  School / Community Centre
+</label>
                 <select style={styles.input} value={hosForm.school_id}
                   onChange={e=>setHosForm({...hosForm,school_id:e.target.value})}>
                   <option value="">— Select School —</option>
