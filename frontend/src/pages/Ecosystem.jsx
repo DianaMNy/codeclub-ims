@@ -27,8 +27,10 @@ const COUNTY_COLORS = {
 
 const ROLE_LABELS = {
   'club_leader':        { label: '⭐ Club Leader',          color: '#2980b9', bg: '#e8f4fd' },
+  'centre_club_leader': { label: '🏢 Centre Club Leader',   color: '#1abc9c', bg: '#e8f8f5' },
   'additional':         { label: '👩‍🏫 Additional Teacher',   color: '#1eb457', bg: '#eafaf1' },
   'head_of_school':     { label: '🏫 Head of School',       color: '#8e44ad', bg: '#f5eef8' },
+  'centre_manager':     { label: '🏢 Centre Manager',       color: '#9b59b6', bg: '#f0e6ff' },
   'ict_intern':         { label: '💻 ICT Intern (CDE)',      color: '#F7941D', bg: '#fdecd5' },
   'subcounty_director': { label: '📋 Sub-County Director',  color: '#e74c3c', bg: '#fdedec' },
 };
@@ -41,7 +43,8 @@ const EMPTY_EXTRA = {
 
 const EMPTY_HOS = {
   full_name:'', phone:'', email:'', school_id:'',
-  training_completed:false, safeguarding_done:false
+  training_completed:false, safeguarding_done:false,
+  role:'head_of_school'
 };
 
 export default function Ecosystem() {
@@ -98,7 +101,7 @@ export default function Ecosystem() {
     ...hosList.map(h => ({
       ...h,
       _source: 'hos',
-      role: 'head_of_school',
+     role: h.role || 'head_of_school', // use actual role from DB,
       survey_done: null,
     })),
     ...extras.map(e => ({
@@ -125,6 +128,7 @@ export default function Ecosystem() {
   const directors = allBuilders.filter(b => b.role === 'subcounty_director').length;
   const trained = allBuilders.filter(b => b.training_completed).length;
   const safeguarded = allBuilders.filter(b => b.safeguarding_done).length;
+  const centreManagers = allBuilders.filter(b => b.role === 'centre_manager').length;
 
   // Update training/safeguarding/survey inline
   const handleToggle = async (item, field) => {
@@ -274,6 +278,8 @@ export default function Ecosystem() {
           { label:'SUB-COUNTY DIRECTORS', value: directors, sub:'education directors', color:'#e74c3c' },
           { label:'TRAINING DONE', value: trained, sub:`of ${allBuilders.length}`, color:'#1eb457' },
           { label:'SAFEGUARDING DONE', value: safeguarded, sub:`of ${allBuilders.length}`, color:'#1abc9c' },
+          { label:'CENTRE MANAGERS', value: centreManagers, sub:'community centres', color:'#9b59b6' },
+          
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
@@ -405,6 +411,14 @@ export default function Ecosystem() {
                 <input style={styles.input} value={hosForm.full_name}
                   onChange={e=>setHosForm({...hosForm,full_name:e.target.value})} />
               </div>
+              <div style={styles.formGroup}>
+  <label style={styles.label}>Role</label>
+  <select style={styles.input} value={hosForm.role}
+    onChange={e=>setHosForm({...hosForm,role:e.target.value})}>
+    <option value="head_of_school">🏫 Head of School</option>
+    <option value="centre_manager">🏢 Centre Manager</option>
+  </select>
+</div>
               <div style={styles.formGroup}>
               <label style={styles.label}>
   School / Community Centre
