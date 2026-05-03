@@ -44,7 +44,7 @@ const EMPTY_EXTRA = {
 const EMPTY_HOS = {
   full_name:'', phone:'', email:'', school_id:'',
   training_completed:false, safeguarding_done:false,
-  role:'head_of_school'
+  role:'head_of_school', county:''
 };
 
 export default function Ecosystem() {
@@ -160,6 +160,7 @@ export default function Ecosystem() {
       phone: item.phone || '',
       email: item.email || '',
       school_id: item.school_id || '',
+      county: item.county || '',
       training_completed: item.training_completed || false,
       safeguarding_done: item.safeguarding_done || false,
     });
@@ -434,6 +435,14 @@ export default function Ecosystem() {
                 <input style={styles.input} value={hosForm.phone}
                   onChange={e=>setHosForm({...hosForm,phone:e.target.value})} />
               </div>
+              <div style={styles.formGroup}>
+  <label style={styles.label}>County</label>
+  <select style={styles.input} value={hosForm.county || ''}
+    onChange={e=>setHosForm({...hosForm,county:e.target.value})}>
+    <option value="">— Select County —</option>
+    {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
+  </select>
+</div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Email</label>
                 <input style={styles.input} type="email" value={hosForm.email}
