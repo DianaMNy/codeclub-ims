@@ -289,13 +289,15 @@ export default function Ecosystem() {
           <input style={styles.search} placeholder="🔍 Search name or school..."
             value={search} onChange={e=>setSearch(e.target.value)} />
           <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
-            <option value="">All Roles</option>
-            <option value="club_leader">Club Leaders</option>
-            <option value="additional">Additional Teachers</option>
-            <option value="head_of_school">Heads of School</option>
-            <option value="ict_intern">ICT Interns</option>
-            <option value="subcounty_director">Sub-County Directors</option>
-          </select>
+  <option value="">All Roles</option>
+  <option value="club_leader">Club Leaders</option>
+  <option value="additional">Additional Teachers</option>
+  <option value="centre_club_leader">Centre Club Leaders</option>
+  <option value="head_of_school">Heads of School</option>
+  <option value="centre_manager">Centre Managers</option>
+  <option value="ict_intern">ICT Interns</option>
+  <option value="subcounty_director">Sub-County Directors</option>
+</select>
           <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
             <option value="">All Counties</option>
             {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
@@ -390,7 +392,7 @@ export default function Ecosystem() {
       {showModal === 'hos' && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
-           <h3 style={styles.modalTitle}>
+  <h3 style={styles.modalTitle}>
   {editingItem ? '✏️ Edit' : '+'} {
     hosForm.school_id && schools.find(s => s.id === hosForm.school_id)?.type === 'community_centre'
       ? 'Centre Manager'
@@ -441,8 +443,10 @@ export default function Ecosystem() {
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
               <button style={styles.saveBtn} onClick={handleSaveHos} disabled={saving}>
-                {saving?'Saving...':editingItem?'Save Changes':'Add HOS'}
-              </button>
+  {saving ? 'Saving...' : editingItem ? 'Save Changes' : 
+    hosForm.school_id && schools.find(s => s.id === hosForm.school_id)?.type === 'community_centre'
+      ? 'Add Centre Manager' : 'Add HOS'}
+</button>
             </div>
           </div>
         </div>
