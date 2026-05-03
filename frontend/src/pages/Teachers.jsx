@@ -30,7 +30,8 @@ const KENYA_COUNTIES = [
 const EMPTY_FORM = {
   school_id:'', full_name:'', role:'club_leader', phone:'',
   email:'', ict_confidence:'beginner',
-  training_completed:false, safeguarding_done:false
+  training_completed:false, safeguarding_done:false,
+  training_date:'', safeguarding_date:''
 };
 
 export default function Teachers() {
@@ -86,6 +87,8 @@ export default function Teachers() {
       ict_confidence: teacher.ict_confidence || 'beginner',
       training_completed: teacher.training_completed || false,
       safeguarding_done: teacher.safeguarding_done || false,
+      training_date: teacher.training_date ? teacher.training_date.split('T')[0] : '',
+      safeguarding_date: teacher.safeguarding_date ? teacher.safeguarding_date.split('T')[0] : '',
     });
     setShowModal(true);
   };
@@ -139,13 +142,17 @@ export default function Teachers() {
   const totalSafeguarding = teachers.filter(t => t.safeguarding_done).length;
   const clubLeaders = teachers.filter(t => t.role === 'club_leader').length;
   const additional = teachers.filter(t => t.role === 'additional').length;
+  const completionRate = teachers.length ? Math.round((totalSafeguarding / teachers.length) * 100) : 0;
 
   const exportCSV = () => {
-    const headers = ['Name','Role','School','County','Area','Mentor','ICT','Training','Safeguarding'];
+    const headers = ['Name','Role','School','County','Area','Mentor','ICT','Training','Training Date','Safeguarding','Safeguarding Date'];
     const rows = filtered.map(t => [
       t.full_name, t.role, t.school_name||'', t.county||'',
       t.subcounty_area||'', t.mentor_name||'', t.ict_confidence||'',
-      t.training_completed?'Yes':'No', t.safeguarding_done?'Yes':'No',
+      t.training_completed?'Yes':'No',
+      t.training_date ? new Date(t.training_date).toLocaleDateString('en-KE') : '',
+      t.safeguarding_done?'Yes':'No',
+      t.safeguarding_date ? new Date(t.safeguarding_date).toLocaleDateString('en-KE') : '',
     ]);
     const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
     const blob = new Blob([csv],{type:'text/csv'});
@@ -161,7 +168,7 @@ export default function Teachers() {
   );
 
   return (
-    <Layout title="Teachers & Club Leaders" subtitle="Educators · Code Club facilitators · RPF 2026">
+    <Layout title="Teachers & Safeguarding" subtitle="Educators · Safeguarding · RPF 2026">
 
       {/* Stat Cards */}
       <div style={styles.cards}>
@@ -169,8 +176,9 @@ export default function Teachers() {
           { label:'TOTAL EDUCATORS', value: teachers.length, sub:'enrolled in system', color:'#69A9C9' },
           { label:'CLUB LEADERS', value: clubLeaders, sub:'main facilitators', color:'#1eb457' },
           { label:'ADDITIONAL TEACHERS', value: additional, sub:'supporting educators', color:'#F7941D' },
-          { label:'TRAINING COMPLETED', value: totalTraining, sub:`of ${teachers.length} enrolled`, color:'#9b59b6' },
+          { label:'TRAINING DONE', value: totalTraining, sub:`of ${teachers.length} enrolled`, color:'#9b59b6' },
           { label:'SAFEGUARDING DONE', value: totalSafeguarding, sub:`of ${teachers.length} enrolled`, color:'#1abc9c' },
+          { label:'COMPLETION RATE', value: `${completionRate}%`, sub:'safeguarding rate', color:'#e74c3c' },
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
@@ -231,11 +239,12 @@ export default function Teachers() {
                 <th style={styles.th}>ROLE</th>
                 <SortTh label="SCHOOL" sortK="school_name" />
                 <SortTh label="COUNTY" sortK="county" />
-                <SortTh label="AREA" sortK="subcounty_area" />
                 <SortTh label="MENTOR" sortK="mentor_name" />
-                <th style={styles.th}>ICT LEVEL</th>
+                <th style={styles.th}>ICT</th>
                 <th style={styles.th}>TRAINING</th>
+                <th style={styles.th}>TRAINING DATE</th>
                 <th style={styles.th}>SAFEGUARDING</th>
+                <th style={styles.th}>SAFEGUARDING DATE</th>
                 <th style={styles.th}>ACTIONS</th>
               </tr>
             </thead>
@@ -260,7 +269,6 @@ export default function Teachers() {
                       </span>
                     )}
                   </td>
-                  <td style={styles.td}>{teacher.subcounty_area||'—'}</td>
                   <td style={styles.td}>{teacher.mentor_name||'—'}</td>
                   <td style={styles.td}>
                     <span style={{...styles.ictBadge,
@@ -277,11 +285,21 @@ export default function Teachers() {
                     </span>
                   </td>
                   <td style={styles.td}>
+                    {teacher.training_date
+                      ? new Date(teacher.training_date).toLocaleDateString('en-KE')
+                      : '—'}
+                  </td>
+                  <td style={styles.td}>
                     <span style={{...styles.checkBadge,
                       background:teacher.safeguarding_done?'#eafaf1':'#fdedec',
                       color:teacher.safeguarding_done?'#1a8a4a':'#e74c3c'}}>
                       {teacher.safeguarding_done?'✅ Done':'❌ Not done'}
                     </span>
+                  </td>
+                  <td style={styles.td}>
+                    {teacher.safeguarding_date
+                      ? new Date(teacher.safeguarding_date).toLocaleDateString('en-KE')
+                      : '—'}
                   </td>
                   <td style={styles.td}>
                     <button style={styles.editBtn} onClick={()=>openEdit(teacher)}>✏️ Edit</button>
@@ -340,6 +358,11 @@ export default function Teachers() {
                 <input style={styles.input} type="email" value={form.email}
                   onChange={e=>setForm({...form,email:e.target.value})} />
               </div>
+            </div>
+
+            {/* Training Section */}
+            <p style={styles.sectionLabel}>📚 Training</p>
+            <div style={styles.formGrid}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>
                   <input type="checkbox" checked={form.training_completed}
@@ -348,13 +371,29 @@ export default function Teachers() {
                 </label>
               </div>
               <div style={styles.formGroup}>
+                <label style={styles.label}>Training Date</label>
+                <input style={styles.input} type="date" value={form.training_date}
+                  onChange={e=>setForm({...form,training_date:e.target.value})} />
+              </div>
+            </div>
+
+            {/* Safeguarding Section */}
+            <p style={styles.sectionLabel}>🛡️ Safeguarding</p>
+            <div style={styles.formGrid}>
+              <div style={styles.formGroup}>
                 <label style={styles.label}>
                   <input type="checkbox" checked={form.safeguarding_done}
                     onChange={e=>setForm({...form,safeguarding_done:e.target.checked})} />
                   {' '}Safeguarding Done
                 </label>
               </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Safeguarding Date</label>
+                <input style={styles.input} type="date" value={form.safeguarding_date}
+                  onChange={e=>setForm({...form,safeguarding_date:e.target.value})} />
+              </div>
             </div>
+
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(false)}>Cancel</button>
               <button style={styles.saveBtn} onClick={handleSave} disabled={saving}>
@@ -382,17 +421,16 @@ export default function Teachers() {
           </div>
         </div>
       )}
-
     </Layout>
   );
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'16px', marginBottom:'20px' },
-  card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
-  cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
-  cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
-  cardSub: { fontSize:'12px', margin:0, fontWeight:'500' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', marginBottom:'20px' },
+  card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
+  cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
+  cardValue: { fontSize:'30px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
+  cardSub: { fontSize:'11px', margin:0, fontWeight:'500' },
   filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
   filters: { display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center' },
   search: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', outline:'none', minWidth:'220px' },
@@ -418,6 +456,7 @@ const styles = {
   overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
   modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'650px', maxHeight:'85vh', overflowY:'auto' },
   modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
+  sectionLabel: { fontSize:'13px', fontWeight:'700', color:'#1a2332', margin:'0 0 12px 0', paddingBottom:'6px', borderBottom:'2px solid #f0f0f0' },
   formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
   formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
