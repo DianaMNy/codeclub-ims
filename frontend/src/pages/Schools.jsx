@@ -128,6 +128,8 @@ const [hosList, setHosList] = useState([]);
   if (!form.cohort.trim()) errors.cohort = 'Required';
   if (!form.referral_source) errors.referral_source = 'Required';
   if (!form.learner_count || form.learner_count < 1) errors.learner_count = 'Must be at least 1';
+  if (!form.hos_name?.trim()) errors.hos_name = form.type === 'school' ? 'Head of School required' : 'Centre Manager required';
+if (!form.hos_phone?.trim()) errors.hos_phone = 'Phone required';
 
   // HOS — only required for schools, not community centres
   if (form.type === 'school') {
@@ -417,6 +419,9 @@ const handleSave = async () => {
   </div>
 </div>
 
+
+
+
           
 {/* Section: Club Leader */}
 <p style={styles.sectionLabel}>⭐ Club Leader</p>
@@ -456,17 +461,21 @@ const handleSave = async () => {
   ) : (
     <div style={{gridColumn:'1/-1', background:'#f0f4ff', borderRadius:'10px', padding:'14px'}}>
       <p style={{margin:0, fontSize:'13px', color:'#3b5bdb'}}>
-        ℹ️ <strong>After enrolling this school</strong>, go to the <strong>Teachers tab</strong> and add a Club Leader — they will be automatically linked to this school.
+        ℹ️ <strong>After enrolling this {form.type === 'school' ? 'school' : 'centre'}</strong>, go to the <strong>Teachers tab</strong> and add a {form.type === 'school' ? 'Club Leader' : 'Centre Club Leader'} — they will be automatically linked.
       </p>
     </div>
   )}
 </div>
 
 {/* Section: Head of School */}
-<p style={styles.sectionLabel}>🏫 Head of School (Safeguarding Sponsor)</p>
+<p style={styles.sectionLabel}>
+  {form.type === 'school' ? '🏫 Head of School (Safeguarding Sponsor)' : '🏢 Centre Manager (Safeguarding Sponsor)'}
+</p>
 <div style={styles.formGrid}>
   <div style={{...styles.formGroup, gridColumn:'1/-1'}}>
-    <label style={styles.label}>Select Head of School</label>
+    <label style={styles.label}>
+  {form.type === 'school' ? 'Select Head of School' : 'Select Centre Manager'}
+</label>
     <select style={styles.input} value={form.hos_name}
       onChange={e => {
         const hos = hosList.find(h => h.full_name === e.target.value);
