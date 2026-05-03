@@ -23,10 +23,16 @@ const COUNTY_COLORS = {
   "Murang'a": '#1eb457',
 };
 
+const EMPTY_FORM = {
+  school_id: '', evaluation_name: '', evaluation_date: '',
+  overall_score: '7', recognition_level: 'nominated',
+  evaluator_comments: '', mentor_id: '',
+};
+
 function StarRating({ score, max = 10 }) {
   const filled = Math.round((score / max) * 5);
   return (
-    <div style={{ display: 'flex', gap: '2px' }}>
+    <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
       {[1, 2, 3, 4, 5].map(i => (
         <span key={i} style={{ fontSize: '16px', color: i <= filled ? '#F5C518' : '#e0e0e0' }}>★</span>
       ))}
@@ -38,46 +44,98 @@ function StarRating({ score, max = 10 }) {
 export default function StarClub() {
   const [evaluations, setEvaluations] = useState([]);
   const [schools, setSchools] = useState([]);
+  const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [selectedCriteria, setSelectedCriteria] = useState([]);
-  const [form, setForm] = useState({
-    school_id: '', evaluation_name: '', evaluation_date: '',
-    overall_score: '7', recognition_level: 'nominated',
-    evaluator_comments: '', follow_up_needed: false, follow_up_notes: '',
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [filterRecognition, setFilterRecognition] = useState('all');
+
+  const fetchEvaluations = () =>
+    api.get('/starclub').then(r => setEvaluations(r.data)).catch(console.error);
 
   useEffect(() => {
-    Promise.all([api.get('/starclub'), api.get('/schools')])
-      .then(([e, s]) => { setEvaluations(e.data); setSchools(s.data); })
+    Promise.all([api.get('/starclub'), api.get('/schools'), api.get('/mentors')])
+      .then(([e, s, m]) => {
+        setEvaluations(e.data);
+        setSchools(s.data);
+        setMentors(m.data);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const toggleCriteria = (c) => {
-    setSelectedCriteria(prev =>
-      prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]
-    );
+  const toggleCriteria = (c) =>
+    setSelectedCriteria(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+
+  const openAdd = () => {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setSelectedCriteria([]);
+    setShowForm(true);
+  };
+
+  const openEdit = (ev) => {
+    setEditingId(ev.id);
+    setForm({
+      school_id: ev.school_id || '',
+      evaluation_name: ev.evaluation_name || '',
+      evaluation_date: ev.evaluation_date ? ev.evaluation_date.split('T')[0] : '',
+      overall_score: String(ev.overall_score || 7),
+      recognition_level: ev.recognition_level || 'nominated',
+      evaluator_comments: ev.evaluator_comments || '',
+      mentor_id: ev.mentor_id || '',
+    });
+    // Reconstruct criteria from criteria_met count — best effort
+    setSelectedCriteria(CRITERIA.slice(0, ev.criteria_met || 0));
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id, schoolName) => {
+    if (!window.confirm(`Delete evaluation for "${schoolName}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/starclub/${id}`);
+      await fetchEvaluations();
+    } catch { alert('Failed to delete evaluation'); }
   };
 
   const handleSubmit = async () => {
     if (!form.school_id) return alert('Please select a school');
     setSaving(true);
     try {
-      await api.post('/starclub', {
+      const payload = {
         ...form,
         criteria_met: selectedCriteria.length,
         overall_score: parseInt(form.overall_score),
-      });
-      const res = await api.get('/starclub');
-      setEvaluations(res.data);
+        mentor_id: form.mentor_id || null,
+      };
+      if (editingId) {
+        await api.put(`/starclub/${editingId}`, payload);
+      } else {
+        await api.post('/starclub', payload);
+      }
+      await fetchEvaluations();
       setShowForm(false);
+      setEditingId(null);
       setSelectedCriteria([]);
-      setForm({ school_id:'', evaluation_name:'', evaluation_date:'', overall_score:'7', recognition_level:'nominated', evaluator_comments:'', follow_up_needed:false, follow_up_notes:'' });
-    } catch (err) { alert('Failed to save evaluation'); }
+      setForm(EMPTY_FORM);
+    } catch { alert('Failed to save evaluation'); }
     finally { setSaving(false); }
   };
+
+  // Filtered list
+  const filtered = evaluations.filter(e => {
+    const matchSearch = !search ||
+      (e.school_name || '').toLowerCase().includes(search.toLowerCase());
+    const matchRec = filterRecognition === 'all' || e.recognition_level === filterRecognition;
+    return matchSearch && matchRec;
+  });
 
   const starClubs = evaluations.filter(e => e.recognition_level === 'star_club');
   const nominated = evaluations.filter(e => e.recognition_level === 'nominated');
@@ -135,22 +193,24 @@ export default function StarClub() {
         </div>
       )}
 
-      {/* Evaluations Table */}
+      {/* Table Section */}
       <div style={styles.section}>
         <div style={styles.sectionHead}>
           <div>
             <p style={styles.sectionTitle}>All Evaluations & Nominations</p>
-            <p style={styles.sectionSub}>{evaluations.length} evaluations · ranked by score</p>
+            <p style={styles.sectionSub}>{filtered.length} of {evaluations.length} evaluations · ranked by score</p>
           </div>
-          <button style={styles.addBtn} onClick={() => setShowForm(!showForm)}>
+          <button style={styles.addBtn} onClick={showForm ? () => { setShowForm(false); setEditingId(null); } : openAdd}>
             {showForm ? '✕ Cancel' : '+ Nominate School'}
           </button>
         </div>
 
-        {/* Nomination Form */}
+        {/* Nomination / Edit Form */}
         {showForm && (
           <div style={styles.formBox}>
-            <p style={styles.formTitle}>⭐ Nominate a School for Star Club</p>
+            <p style={styles.formTitle}>
+              {editingId ? '✏️ Edit Evaluation' : '⭐ Nominate a School for Star Club'}
+            </p>
 
             <div style={styles.formGrid}>
               <div style={styles.formField}>
@@ -158,22 +218,25 @@ export default function StarClub() {
                 <select style={styles.formSelect} value={form.school_id}
                   onChange={e => setForm({...form, school_id: e.target.value})}>
                   <option value="">Select school...</option>
-                  {schools.filter(s=>s.type==='school' && s.status==='active').map(s => (
+                  {schools.filter(s => s.status === 'active').map(s => (
                     <option key={s.id} value={s.id}>{s.official_name} — {s.county}</option>
                   ))}
                 </select>
               </div>
+
               <div style={styles.formField}>
                 <label style={styles.label}>Evaluation Name</label>
                 <input style={styles.formInput} placeholder="e.g. Star Club Eval — Term 1 2026..."
                   value={form.evaluation_name}
                   onChange={e => setForm({...form, evaluation_name: e.target.value})} />
               </div>
+
               <div style={styles.formField}>
                 <label style={styles.label}>Evaluation Date</label>
                 <input type="date" style={styles.formInput} value={form.evaluation_date}
                   onChange={e => setForm({...form, evaluation_date: e.target.value})} />
               </div>
+
               <div style={styles.formField}>
                 <label style={styles.label}>Overall Score (0-10)</label>
                 <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
@@ -185,6 +248,7 @@ export default function StarClub() {
                   </span>
                 </div>
               </div>
+
               <div style={styles.formField}>
                 <label style={styles.label}>Recognition Level</label>
                 <select style={styles.formSelect} value={form.recognition_level}
@@ -194,6 +258,17 @@ export default function StarClub() {
                   <option value="star_club">⭐ Star Club</option>
                 </select>
               </div>
+
+              <div style={styles.formField}>
+                <label style={styles.label}>Assigned Mentor</label>
+                <select style={styles.formSelect} value={form.mentor_id}
+                  onChange={e => setForm({...form, mentor_id: e.target.value})}>
+                  <option value="">Select mentor...</option>
+                  {mentors.map(m => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Criteria Checklist */}
@@ -201,10 +276,11 @@ export default function StarClub() {
               <label style={styles.label}>Criteria Met ({selectedCriteria.length}/4)</label>
               <div style={styles.criteriaGrid}>
                 {CRITERIA.map((c, i) => (
-                  <div key={i} style={{...styles.criteriaItem,
-                    background: selectedCriteria.includes(c) ? '#eafaf1' : '#f8f9fa',
-                    border: selectedCriteria.includes(c) ? '1.5px solid #1eb457' : '1.5px solid #e2e8f0',
-                    cursor:'pointer'}}
+                  <div key={i}
+                    style={{...styles.criteriaItem,
+                      background: selectedCriteria.includes(c) ? '#eafaf1' : '#f8f9fa',
+                      border: selectedCriteria.includes(c) ? '1.5px solid #1eb457' : '1.5px solid #e2e8f0',
+                      cursor:'pointer'}}
                     onClick={() => toggleCriteria(c)}>
                     <span style={{fontSize:'18px'}}>{selectedCriteria.includes(c) ? '✅' : '⬜'}</span>
                     <span style={{fontSize:'13px', color:'#333'}}>{c}</span>
@@ -225,12 +301,34 @@ export default function StarClub() {
 
             <div style={styles.formActions}>
               <button style={styles.saveBtn} onClick={handleSubmit} disabled={saving}>
-                {saving ? 'Saving...' : '⭐ Save Evaluation'}
+                {saving ? 'Saving...' : editingId ? '💾 Update Evaluation' : '⭐ Save Evaluation'}
               </button>
-              <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
+              <button style={styles.cancelBtn} onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
             </div>
           </div>
         )}
+
+        {/* Search + Filter Bar */}
+        <div style={styles.filterBar}>
+          <input
+            style={styles.searchInput}
+            placeholder="🔍 Search school or centre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <select style={styles.filterSelect} value={filterRecognition}
+            onChange={e => setFilterRecognition(e.target.value)}>
+            <option value="all">All Recognition</option>
+            <option value="nominated">🏅 Nominated</option>
+            <option value="star_club">⭐ Star Club</option>
+            <option value="none">None</option>
+          </select>
+          {(search || filterRecognition !== 'all') && (
+            <button style={styles.clearBtn} onClick={() => { setSearch(''); setFilterRecognition('all'); }}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
 
         {/* Table */}
         {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
@@ -245,11 +343,12 @@ export default function StarClub() {
               <th style={styles.th}>RECOGNITION</th>
               <th style={styles.th}>MENTOR</th>
               <th style={styles.th}>DATE</th>
+              <th style={styles.th}>ACTIONS</th>
             </tr></thead>
             <tbody>
-              {evaluations.map((e, i) => (
+              {filtered.map((e, i) => (
                 <tr key={e.id} style={{background: i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
-                  <td style={{...styles.td, fontWeight:'700', color: i===0?'#F5C518':i===1?'#aaa':i===2?'#cd7f32':'#888'}}>
+                  <td style={{...styles.td, fontWeight:'700'}}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
                   </td>
                   <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{e.school_name || '—'}</td>
@@ -273,7 +372,7 @@ export default function StarClub() {
                     <span style={{...styles.badge,
                       background: e.recognition_level==='star_club' ? '#fef9e7' :
                                   e.recognition_level==='nominated' ? '#eafaf1' : '#f8f9fa',
-                      color: e.recognition_level==='star_club' ? '#F5C518' :
+                      color: e.recognition_level==='star_club' ? '#d4a600' :
                              e.recognition_level==='nominated' ? '#1a8a4a' : '#888'}}>
                       {e.recognition_level==='star_club' ? '⭐ Star Club' :
                        e.recognition_level==='nominated' ? '🏅 Nominated' : 'None'}
@@ -281,13 +380,21 @@ export default function StarClub() {
                   </td>
                   <td style={styles.td}>{e.mentor_name || '—'}</td>
                   <td style={styles.td}>
-                    {e.evaluation_date ? new Date(e.evaluation_date).toLocaleDateString() : '—'}
+                    {e.evaluation_date ? new Date(e.evaluation_date).toLocaleDateString('en-KE', {day:'numeric',month:'short',year:'numeric'}) : '—'}
+                  </td>
+                  <td style={styles.td}>
+                    <div style={{display:'flex', gap:'6px'}}>
+                      <button style={styles.editBtn} onClick={() => openEdit(e)}>✏️ Edit</button>
+                      <button style={styles.deleteBtn} onClick={() => handleDelete(e.id, e.school_name)}>🗑</button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {evaluations.length === 0 && (
-                <tr><td colSpan={9} style={{padding:'40px', textAlign:'center', color:'#888'}}>
-                  No evaluations yet. Click "+ Nominate School" to add the first one!
+              {filtered.length === 0 && (
+                <tr><td colSpan={10} style={{padding:'40px', textAlign:'center', color:'#888'}}>
+                  {evaluations.length === 0
+                    ? 'No evaluations yet. Click "+ Nominate School" to add the first one!'
+                    : 'No results match your filters.'}
                 </td></tr>
               )}
             </tbody>
@@ -313,10 +420,14 @@ const styles = {
   showcaseCounty: { fontSize:'12px', color:'rgba(255,255,255,0.6)', margin:'0 0 8px 0' },
   showcaseMentor: { fontSize:'11px', color:'rgba(255,255,255,0.5)', margin:'8px 0 0 0' },
   section: { background:'#fff', borderRadius:'12px', padding:'24px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
-  sectionHead: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'20px' },
+  sectionHead: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' },
   sectionTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   sectionSub: { fontSize:'12px', color:'#8a96a3', margin:0 },
   addBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#F5C518', color:'#1a2332', fontSize:'13px', fontWeight:'700', cursor:'pointer' },
+  filterBar: { display:'flex', gap:'10px', marginBottom:'16px', alignItems:'center', flexWrap:'wrap' },
+  searchInput: { padding:'9px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', outline:'none', minWidth:'220px', flex:1 },
+  filterSelect: { padding:'9px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
+  clearBtn: { padding:'9px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', color:'#e74c3c', fontSize:'13px', cursor:'pointer', fontWeight:'600' },
   formBox: { background:'#f8f9fa', borderRadius:'10px', padding:'20px', marginBottom:'20px', border:'1px solid #e2e8f0' },
   formTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 16px 0' },
   formGrid: { display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'16px' },
@@ -335,4 +446,6 @@ const styles = {
   th: { padding:'10px 16px', textAlign:'left', fontSize:'11px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', borderBottom:'2px solid #f0f0f0', whiteSpace:'nowrap' },
   td: { padding:'12px 16px', fontSize:'13px', color:'#4a5568' },
   badge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
+  editBtn: { padding:'5px 12px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', color:'#69A9C9', fontSize:'12px', fontWeight:'600', cursor:'pointer' },
+  deleteBtn: { padding:'5px 10px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', color:'#e74c3c', fontSize:'12px', cursor:'pointer' },
 };

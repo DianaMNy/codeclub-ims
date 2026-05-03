@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
 // GET /api/starclub — all evaluations
 router.get('/', requireAuth, async (req, res) => {
@@ -27,14 +27,12 @@ router.get('/', requireAuth, async (req, res) => {
 // POST /api/starclub — nominate a school
 router.post('/', requireAuth, async (req, res) => {
   const {
-    school_id, evaluation_name, evaluation_date,
+    school_id, mentor_id, evaluation_name, evaluation_date,
     criteria_met, overall_score, recognition_level,
     evaluator_comments, follow_up_needed, follow_up_notes
   } = req.body;
 
-  if (!school_id) {
-    return res.status(400).json({ error: 'School is required' });
-  }
+  if (!school_id) return res.status(400).json({ error: 'School is required' });
 
   try {
     const result = await pool.query(
@@ -44,13 +42,83 @@ router.post('/', requireAuth, async (req, res) => {
          evaluator_comments, follow_up_needed, follow_up_notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING *`,
-      [school_id, req.user.mentor_id || null, evaluation_name,
-       evaluation_date || null, criteria_met || 0,
-       overall_score || 0, recognition_level || 'nominated',
-       evaluator_comments || null, follow_up_needed || false,
-       follow_up_notes || null]
+      [
+        school_id,
+        mentor_id || null,
+        evaluation_name || null,
+        evaluation_date || null,
+        criteria_met || 0,
+        overall_score || 0,
+        recognition_level || 'nominated',
+        evaluator_comments || null,
+        follow_up_needed || false,
+        follow_up_notes || null
+      ]
     );
     res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/starclub/:id — update evaluation
+router.put('/:id', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const {
+    school_id, mentor_id, evaluation_name, evaluation_date,
+    criteria_met, overall_score, recognition_level,
+    evaluator_comments, follow_up_needed, follow_up_notes
+  } = req.body;
+
+  if (!school_id) return res.status(400).json({ error: 'School is required' });
+
+  try {
+    const result = await pool.query(
+      `UPDATE star_club_evaluations SET
+        school_id          = $1,
+        mentor_id          = $2,
+        evaluation_name    = $3,
+        evaluation_date    = $4,
+        criteria_met       = $5,
+        overall_score      = $6,
+        recognition_level  = $7,
+        evaluator_comments = $8,
+        follow_up_needed   = $9,
+        follow_up_notes    = $10,
+        updated_at         = NOW()
+       WHERE id = $11
+       RETURNING *`,
+      [
+        school_id,
+        mentor_id || null,
+        evaluation_name || null,
+        evaluation_date || null,
+        criteria_met || 0,
+        overall_score || 0,
+        recognition_level || 'nominated',
+        evaluator_comments || null,
+        follow_up_needed || false,
+        follow_up_notes || null,
+        id
+      ]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Evaluation not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/starclub/:id — delete evaluation
+router.delete('/:id', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      'DELETE FROM star_club_evaluations WHERE id = $1 RETURNING id',
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Evaluation not found' });
+    res.json({ message: 'Evaluation deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
