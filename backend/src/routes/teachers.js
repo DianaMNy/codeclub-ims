@@ -58,24 +58,35 @@ if (role === 'club_leader' && school_id) {
 // PUT /api/teachers/:id
 router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done } = req.body;
+    const { 
+      school_id, full_name, role, phone, email, ict_confidence, 
+      training_completed, safeguarding_done,
+      training_date, safeguarding_date
+    } = req.body;
+
     const result = await pool.query(`
       UPDATE teachers SET
         school_id=$1, full_name=$2, role=$3, phone=$4, email=$5,
-        ict_confidence=$6, training_completed=$7, safeguarding_done=$8
-      WHERE id=$9
+        ict_confidence=$6, training_completed=$7, safeguarding_done=$8,
+        training_date=$9, safeguarding_date=$10
+      WHERE id=$11
       RETURNING *
-    `, [school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done, req.params.id]);
+    `, [school_id, full_name, role, phone, email, ict_confidence, 
+        training_completed, safeguarding_done,
+        training_date || null, safeguarding_date || null,
+        req.params.id]);
+
     if (result.rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
-   // Auto-update school with club leader info
-if (role === 'club_leader' && school_id) {
-  await pool.query(`
-    UPDATE schools_and_centres 
-    SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
-    WHERE id=$4
-  `, [full_name, phone || null, email || null, school_id]);
-}
-   
+
+    // Auto-update school with club leader info
+    if (role === 'club_leader' && school_id) {
+      await pool.query(`
+        UPDATE schools_and_centres 
+        SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
+        WHERE id=$4
+      `, [full_name, phone || null, email || null, school_id]);
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update teacher error:', err.message);
