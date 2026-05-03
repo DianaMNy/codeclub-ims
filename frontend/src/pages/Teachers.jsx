@@ -254,10 +254,13 @@ export default function Teachers() {
                   <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{teacher.full_name}</td>
                   <td style={styles.td}>
                     <span style={{...styles.roleBadge,
-                      background: teacher.role==='club_leader'?'#e8f4fd':'#f0f4f8',
-                      color: teacher.role==='club_leader'?'#2980b9':'#666'}}>
-                      {teacher.role==='club_leader'?'⭐ Club Leader':'+ Additional'}
-                    </span>
+  background: teacher.role==='club_leader'?'#e8f4fd':
+              teacher.role==='centre_club_leader'?'#f5eef8':'#f0f4f8',
+  color: teacher.role==='club_leader'?'#2980b9':
+         teacher.role==='centre_club_leader'?'#8e44ad':'#666'}}>
+  {teacher.role==='club_leader'?'⭐ Club Leader':
+   teacher.role==='centre_club_leader'?'🏢 Centre Club Leader':'+ Additional'}
+</span>
                   </td>
                   <td style={styles.td}>{teacher.school_name||'—'}</td>
                   <td style={styles.td}>
@@ -333,11 +336,12 @@ export default function Teachers() {
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Role</label>
-                <select style={styles.input} value={form.role}
-                  onChange={e=>setForm({...form,role:e.target.value})}>
-                  <option value="club_leader">⭐ Club Leader</option>
-                  <option value="additional">+ Additional Teacher</option>
-                </select>
+               <select style={styles.input} value={form.role}
+  onChange={e=>setForm({...form,role:e.target.value})}>
+  <option value="club_leader">⭐ Club Leader (School)</option>
+  <option value="centre_club_leader">🏢 Centre Club Leader</option>
+  <option value="additional">+ Additional Teacher</option>
+</select>
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>ICT Confidence</label>

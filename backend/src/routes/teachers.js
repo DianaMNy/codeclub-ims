@@ -40,7 +40,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       RETURNING *
     `, [school_id, full_name, role || 'club_leader', phone, email, ict_confidence || 'beginner', training_completed || false, safeguarding_done || false]);
    // Auto-update school with club leader info
-if (role === 'club_leader' && school_id) {
+if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
   await pool.query(`
     UPDATE schools_and_centres 
     SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
@@ -79,14 +79,13 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
 
     // Auto-update school with club leader info
-    if (role === 'club_leader' && school_id) {
-      await pool.query(`
-        UPDATE schools_and_centres 
-        SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
-        WHERE id=$4
-      `, [full_name, phone || null, email || null, school_id]);
-    }
-
+  if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
+  await pool.query(`
+    UPDATE schools_and_centres 
+    SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
+    WHERE id=$4
+  `, [full_name, phone || null, email || null, school_id]);
+}
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update teacher error:', err.message);
