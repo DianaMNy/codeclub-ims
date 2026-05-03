@@ -50,6 +50,7 @@ export default function Teachers() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  
 
   const fetchData = () => {
     setLoading(true);
@@ -142,6 +143,7 @@ export default function Teachers() {
   const totalSafeguarding = teachers.filter(t => t.safeguarding_done).length;
   const clubLeaders = teachers.filter(t => t.role === 'club_leader').length;
   const additional = teachers.filter(t => t.role === 'additional').length;
+  const centreClubLeaders = teachers.filter(t => t.role === 'centre_club_leader').length;
   const completionRate = teachers.length ? Math.round((totalSafeguarding / teachers.length) * 100) : 0;
 
   const exportCSV = () => {
@@ -179,6 +181,7 @@ export default function Teachers() {
           { label:'TRAINING DONE', value: totalTraining, sub:`of ${teachers.length} enrolled`, color:'#9b59b6' },
           { label:'SAFEGUARDING DONE', value: totalSafeguarding, sub:`of ${teachers.length} enrolled`, color:'#1abc9c' },
           { label:'COMPLETION RATE', value: `${completionRate}%`, sub:'safeguarding rate', color:'#e74c3c' },
+          { label:'CENTRE CLUB LEADERS', value: centreClubLeaders, sub:'community centres', color:'#8e44ad' },
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
@@ -197,11 +200,12 @@ export default function Teachers() {
             <option value="">All Counties</option>
             {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
-          <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
-            <option value="">All Roles</option>
-            <option value="club_leader">Club Leaders</option>
-            <option value="additional">Additional</option>
-          </select>
+         <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
+  <option value="">All Roles</option>
+  <option value="club_leader">Club Leaders</option>
+  <option value="centre_club_leader">Centre Club Leaders</option>
+  <option value="additional">Additional</option>
+</select>
           <select style={styles.select} value={filterTraining} onChange={e=>setFilterTraining(e.target.value)}>
             <option value="">All Training</option>
             <option value="yes">Training Complete</option>
