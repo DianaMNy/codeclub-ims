@@ -10,6 +10,16 @@ api.interceptors.request.use(config => {
   return config;
 });
 
+const ALL_KENYA_COUNTIES = [
+  'Baringo','Bomet','Bungoma','Busia','Elgeyo-Marakwet','Embu','Garissa',
+  'Homa Bay','Isiolo','Kajiado','Kakamega','Kericho','Kiambu','Kilifi',
+  'Kirinyaga','Kisii','Kisumu','Kitui','Kwale','Laikipia','Lamu','Machakos',
+  'Makueni','Mandera','Marsabit','Meru','Migori','Mombasa',"Murang'a",
+  'Nairobi','Nakuru','Nandi','Narok','Nyamira','Nyandarua','Nyeri',
+  'Samburu','Siaya','Taita-Taveta','Tana River','Tharaka-Nithi','Trans Nzoia',
+  'Turkana','Uasin Gishu','Vihiga','Wajir','West Pokot',
+];
+
 const COUNTY_COLORS = {
   'Kiambu': '#69A9C9',
   'Kajiado': '#F7941D',
@@ -18,82 +28,119 @@ const COUNTY_COLORS = {
 
 const FLAG_TYPE_LABELS = {
   'mentor_initiated': { label: '👤 Mentor Raised', color: '#e74c3c', bg: '#fdedec' },
-  'auto_30': { label: '⏰ 30-Day Auto', color: '#F7941D', bg: '#fdecd5' },
-  'auto_60': { label: '⏰ 60-Day Auto', color: '#e67e22', bg: '#fef0e7' },
-  'auto_90': { label: '🚨 90-Day Critical', color: '#c0392b', bg: '#fdedec' },
+  'auto_30':          { label: '⏰ 30-Day Auto',   color: '#F7941D', bg: '#fdecd5' },
+  'auto_60':          { label: '⏰ 60-Day Auto',   color: '#e67e22', bg: '#fef0e7' },
+  'auto_90':          { label: '🚨 90-Day Critical',color: '#c0392b', bg: '#fdedec' },
 };
 
 const STATUS_STYLES = {
-  'open': { label: '🔴 Open', color: '#e74c3c', bg: '#fdedec' },
+  'open':      { label: '🔴 Open',      color: '#e74c3c', bg: '#fdedec' },
   'escalated': { label: '🚨 Escalated', color: '#c0392b', bg: '#fde8e8' },
-  'resolved': { label: '✅ Resolved', color: '#1a8a4a', bg: '#eafaf1' },
+  'resolved':  { label: '✅ Resolved',  color: '#1a8a4a', bg: '#eafaf1' },
 };
 
-export default function FlagsAlerts() {
-  const [flags, setFlags] = useState([]);
-  const [schools, setSchools] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterCounty, setFilterCounty] = useState('');
-  const [resolvingId, setResolvingId] = useState(null);
-  const [resolutionNote, setResolutionNote] = useState('');
-  const [form, setForm] = useState({
-    school_id: '', reason: '', flag_type: 'mentor_initiated',
-  });
+const EMPTY_FORM = { school_id:'', mentor_id:'', reason:'', flag_type:'mentor_initiated', flagged_at:'' };
 
-  useEffect(() => {
-    Promise.all([api.get('/flagalerts'), api.get('/schools')])
-      .then(([f, s]) => { setFlags(f.data); setSchools(s.data); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+export default function FlagsAlerts() {
+  const [flags, setFlags]       = useState([]);
+  const [schools, setSchools]   = useState([]);
+  const [mentors, setMentors]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm]           = useState(EMPTY_FORM);
+
+  // Filters
+  const [filterStatus, setFilterStatus]   = useState('');
+  const [filterCounty, setFilterCounty]   = useState('');
+  const [filterSchool, setFilterSchool]   = useState('');
+
+  // Resolve
+  const [resolvingId, setResolvingId]         = useState(null);
+  const [resolutionNote, setResolutionNote]   = useState('');
 
   const refreshFlags = async () => {
     const res = await api.get('/flagalerts');
     setFlags(res.data);
   };
 
-  const handleRaiseFlag = async () => {
+  useEffect(() => {
+    Promise.all([api.get('/flagalerts'), api.get('/schools'), api.get('/mentors')])
+      .then(([f, s, m]) => { setFlags(f.data); setSchools(s.data); setMentors(m.data); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // ── CRUD ────────────────────────────────────────────────────────────────────
+  const openAdd = () => {
+    setEditingId(null); setForm(EMPTY_FORM); setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openEdit = (flag) => {
+    setEditingId(flag.id);
+    setForm({
+      school_id:  flag.school_id  || '',
+      mentor_id:  flag.mentor_id  || '',
+      reason:     flag.reason     || '',
+      flag_type:  flag.flag_type  || 'mentor_initiated',
+      flagged_at: flag.flagged_at ? flag.flagged_at.split('T')[0] : '',
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSubmit = async () => {
     if (!form.school_id) return alert('Please select a school');
-    if (!form.reason) return alert('Please enter a reason');
+    if (!form.reason)    return alert('Please enter a reason');
     setSaving(true);
     try {
-      await api.post('/flagalerts', form);
+      if (editingId) {
+        await api.put(`/flagalerts/${editingId}`, form);
+      } else {
+        await api.post('/flagalerts', form);
+      }
       await refreshFlags();
-      setShowForm(false);
-      setForm({ school_id:'', reason:'', flag_type:'mentor_initiated' });
-    } catch (err) { alert('Failed to raise flag'); }
+      setShowForm(false); setEditingId(null); setForm(EMPTY_FORM);
+    } catch { alert('Failed to save flag'); }
     finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id, schoolName) => {
+    if (!window.confirm(`Delete flag for "${schoolName}"? This cannot be undone.`)) return;
+    try { await api.delete(`/flagalerts/${id}`); await refreshFlags(); }
+    catch { alert('Failed to delete flag'); }
   };
 
   const handleResolve = async (id) => {
     try {
       await api.patch(`/flagalerts/${id}/resolve`, { resolution_notes: resolutionNote });
       await refreshFlags();
-      setResolvingId(null);
-      setResolutionNote('');
-    } catch (err) { alert('Failed to resolve flag'); }
+      setResolvingId(null); setResolutionNote('');
+    } catch { alert('Failed to resolve flag'); }
   };
 
   const handleEscalate = async (id) => {
-    try {
-      await api.patch(`/flagalerts/${id}/escalate`);
-      await refreshFlags();
-    } catch (err) { alert('Failed to escalate flag'); }
+    try { await api.patch(`/flagalerts/${id}/escalate`); await refreshFlags(); }
+    catch { alert('Failed to escalate flag'); }
   };
 
+  // ── Filters ─────────────────────────────────────────────────────────────────
   const filtered = flags.filter(f => {
     if (filterStatus && f.status !== filterStatus) return false;
     if (filterCounty && f.county !== filterCounty) return false;
+    if (filterSchool && f.school_id !== filterSchool) return false;
     return true;
   });
 
-  const open = flags.filter(f => f.status === 'open').length;
+  const open      = flags.filter(f => f.status === 'open').length;
   const escalated = flags.filter(f => f.status === 'escalated').length;
-  const resolved = flags.filter(f => f.status === 'resolved').length;
-  const critical = flags.filter(f => f.flag_type === 'auto_90').length;
+  const resolved  = flags.filter(f => f.status === 'resolved').length;
+  const critical  = flags.filter(f => f.flag_type === 'auto_90').length;
+
+  const clearFilters = () => { setFilterStatus(''); setFilterCounty(''); setFilterSchool(''); };
+  const hasFilters = filterStatus || filterCounty || filterSchool;
 
   return (
     <Layout title="Flags & Alerts" subtitle="School monitoring · Escalations · Follow-ups · RPF 2026">
@@ -127,151 +174,201 @@ export default function FlagsAlerts() {
         </div>
       </div>
 
-      {/* Alert banner if critical flags */}
+      {/* Alert Banner */}
       {(open > 0 || escalated > 0) && (
         <div style={styles.alertBanner}>
           <span style={{fontSize:'20px'}}>🚨</span>
           <div>
             <p style={styles.alertTitle}>
-              {escalated > 0 ? `${escalated} escalated flag${escalated>1?'s':''} require immediate attention!` :
-               `${open} open flag${open>1?'s':''} need to be reviewed.`}
+              {escalated > 0
+                ? `${escalated} escalated flag${escalated>1?'s':''} require immediate attention!`
+                : `${open} open flag${open>1?'s':''} need to be reviewed.`}
             </p>
             <p style={styles.alertSub}>Review and resolve flags below to keep programme on track.</p>
           </div>
         </div>
       )}
 
-      {/* Filters + Raise Flag */}
-      <div style={styles.filterBar}>
-        <div style={styles.filters}>
-          <select style={styles.select} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">All Statuses</option>
-            <option value="open">Open</option>
-            <option value="escalated">Escalated</option>
-            <option value="resolved">Resolved</option>
-          </select>
-          <select style={styles.select} value={filterCounty} onChange={e => setFilterCounty(e.target.value)}>
-            <option value="">All Counties</option>
-            <option value="Kiambu">Kiambu</option>
-            <option value="Kajiado">Kajiado</option>
-            <option value="Murang'a">Murang'a</option>
-          </select>
-          {(filterStatus || filterCounty) && (
-            <button style={styles.clearBtn} onClick={() => { setFilterStatus(''); setFilterCounty(''); }}>
-              ✕ Clear
-            </button>
-          )}
-        </div>
-        <button style={styles.raiseBtn} onClick={() => setShowForm(!showForm)}>
-          🚩 Raise Flag
-        </button>
-      </div>
-
       {/* Raise Flag Form */}
       {showForm && (
         <div style={styles.formBox}>
-          <p style={styles.formTitle}>🚩 Raise a New Flag</p>
+          <p style={styles.formTitle}>{editingId ? '✏️ Edit Flag' : '🚩 Raise a New Flag'}</p>
           <div style={styles.formGrid}>
             <div style={styles.formField}>
-              <label style={styles.label}>School *</label>
+              <label style={styles.label}>School / Centre *</label>
               <select style={styles.formSelect} value={form.school_id}
-                onChange={e => setForm({...form, school_id: e.target.value})}>
-                <option value="">Select school...</option>
-                {schools.filter(s=>s.type==='school').map(s => (
-                  <option key={s.id} value={s.id}>{s.official_name} — {s.county}</option>
+                onChange={e => setForm({...form, school_id:e.target.value})}>
+                <option value="">Select school or centre...</option>
+                <optgroup label="Schools">
+                  {schools.filter(s=>s.type==='school').map(s => (
+                    <option key={s.id} value={s.id}>{s.official_name} — {s.county}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Community Centres">
+                  {schools.filter(s=>s.type==='community_centre').map(s => (
+                    <option key={s.id} value={s.id}>{s.official_name} — {s.county}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            <div style={styles.formField}>
+              <label style={styles.label}>Mentor Raising Flag</label>
+              <select style={styles.formSelect} value={form.mentor_id}
+                onChange={e => setForm({...form, mentor_id:e.target.value})}>
+                <option value="">Select mentor...</option>
+                {mentors.map(m => (
+                  <option key={m.id} value={m.id}>{m.full_name}</option>
                 ))}
               </select>
             </div>
+
             <div style={styles.formField}>
               <label style={styles.label}>Flag Type</label>
               <select style={styles.formSelect} value={form.flag_type}
-                onChange={e => setForm({...form, flag_type: e.target.value})}>
+                onChange={e => setForm({...form, flag_type:e.target.value})}>
                 <option value="mentor_initiated">👤 Mentor Initiated</option>
                 <option value="auto_30">⏰ 30-Day No Activity</option>
                 <option value="auto_60">⏰ 60-Day No Activity</option>
                 <option value="auto_90">🚨 90-Day Critical</option>
               </select>
             </div>
+
+            <div style={styles.formField}>
+              <label style={styles.label}>Date Flagged</label>
+              <input type="date" style={styles.formInput} value={form.flagged_at}
+                onChange={e => setForm({...form, flagged_at:e.target.value})} />
+            </div>
           </div>
+
           <div style={{marginTop:'12px'}}>
             <div style={styles.formField}>
               <label style={styles.label}>Reason *</label>
               <textarea style={styles.formTextarea} rows={3}
                 placeholder="Why is this school being flagged? What is the concern?"
                 value={form.reason}
-                onChange={e => setForm({...form, reason: e.target.value})} />
+                onChange={e => setForm({...form, reason:e.target.value})} />
             </div>
           </div>
+
           <div style={styles.formActions}>
-            <button style={styles.saveBtn} onClick={handleRaiseFlag} disabled={saving}>
-              {saving ? 'Raising...' : '🚩 Raise Flag'}
+            <button style={styles.saveBtn} onClick={handleSubmit} disabled={saving}>
+              {saving ? 'Saving...' : editingId ? '💾 Update Flag' : '🚩 Raise Flag'}
             </button>
-            <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
+            <button style={styles.cancelBtn} onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
           </div>
+
+          {!editingId && (
+            <p style={{margin:'12px 0 0', fontSize:'11px', color:'#aaa'}}>
+              📧 Email notification to programme coordinator — coming soon (Resend integration)
+            </p>
+          )}
         </div>
       )}
 
-      {/* Flags Table */}
+      {/* Filter Bar */}
+      <div style={styles.filterBar}>
+        <div style={styles.filters}>
+          <select style={styles.select} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">All Statuses</option>
+            <option value="open">🔴 Open</option>
+            <option value="escalated">🚨 Escalated</option>
+            <option value="resolved">✅ Resolved</option>
+          </select>
+
+          <select style={styles.select} value={filterCounty} onChange={e => { setFilterCounty(e.target.value); setFilterSchool(''); }}>
+            <option value="">All Counties</option>
+            {ALL_KENYA_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
+          <select style={styles.select} value={filterSchool} onChange={e => setFilterSchool(e.target.value)}>
+            <option value="">All Schools & Centres</option>
+            {schools
+              .filter(s => !filterCounty || s.county === filterCounty)
+              .map(s => <option key={s.id} value={s.id}>{s.official_name}</option>)}
+          </select>
+
+          {hasFilters && (
+            <button style={styles.clearBtn} onClick={clearFilters}>✕ Clear</button>
+          )}
+        </div>
+        <button style={styles.raiseBtn} onClick={showForm ? () => { setShowForm(false); setEditingId(null); } : openAdd}>
+          {showForm ? '✕ Cancel' : '🚩 Raise Flag'}
+        </button>
+      </div>
+
+      {/* Flags List */}
       <div style={styles.section}>
         <p style={styles.sectionTitle}>All Flags & Alerts</p>
-        <p style={styles.sectionSub}>{filtered.length} flags · sorted by urgency</p>
+        <p style={styles.sectionSub}>{filtered.length} of {flags.length} flags · sorted by urgency</p>
 
         {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
           <div style={{marginTop:'16px', display:'flex', flexDirection:'column', gap:'12px'}}>
             {filtered.map(flag => {
-              const statusStyle = STATUS_STYLES[flag.status] || STATUS_STYLES.open;
+              const statusStyle  = STATUS_STYLES[flag.status] || STATUS_STYLES.open;
               const flagTypeInfo = FLAG_TYPE_LABELS[flag.flag_type] || FLAG_TYPE_LABELS.mentor_initiated;
-              const isResolving = resolvingId === flag.id;
+              const isResolving  = resolvingId === flag.id;
+              const countyColor  = COUNTY_COLORS[flag.county] || '#8a96a3';
 
               return (
                 <div key={flag.id} style={{
                   ...styles.flagCard,
                   borderLeft: `4px solid ${statusStyle.color}`,
-                  opacity: flag.status === 'resolved' ? 0.7 : 1,
+                  opacity: flag.status === 'resolved' ? 0.75 : 1,
                 }}>
                   <div style={styles.flagTop}>
                     <div style={styles.flagLeft}>
+                      {/* Badges row */}
                       <div style={styles.flagMeta}>
-                        <span style={{...styles.badge, background: flagTypeInfo.bg, color: flagTypeInfo.color}}>
+                        <span style={{...styles.badge, background:flagTypeInfo.bg, color:flagTypeInfo.color}}>
                           {flagTypeInfo.label}
                         </span>
-                        <span style={{...styles.badge, background: statusStyle.bg, color: statusStyle.color}}>
+                        <span style={{...styles.badge, background:statusStyle.bg, color:statusStyle.color}}>
                           {statusStyle.label}
                         </span>
                         {flag.county && (
-                          <span style={{...styles.badge,
-                            background: (COUNTY_COLORS[flag.county]||'#888')+'20',
-                            color: COUNTY_COLORS[flag.county]||'#888'}}>
+                          <span style={{...styles.badge, background:countyColor+'20', color:countyColor}}>
                             {flag.county}
                           </span>
                         )}
                         <span style={styles.clubId}>{flag.club_id || '—'}</span>
                       </div>
+
                       <p style={styles.flagSchool}>{flag.school_name || '—'}</p>
                       <p style={styles.flagReason}>{flag.reason}</p>
+
                       <p style={styles.flagMeta2}>
-                        Raised by {flag.mentor_name || 'Admin'} · {new Date(flag.flagged_at).toLocaleDateString()}
+                        Raised by {flag.mentor_name || 'Admin'} ·{' '}
+                        {flag.flagged_at
+                          ? new Date(flag.flagged_at).toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'})
+                          : '—'}
                         {flag.escalation_level > 0 && ` · Escalation level ${flag.escalation_level}`}
+                        {flag.resolved_at && ` · Resolved ${new Date(flag.resolved_at).toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'})}`}
                       </p>
+
                       {flag.status === 'resolved' && flag.resolution_notes && (
                         <p style={styles.resolutionNote}>✅ Resolution: {flag.resolution_notes}</p>
                       )}
                     </div>
 
-                    {/* Actions */}
-                    {flag.status !== 'resolved' && (
-                      <div style={styles.flagActions}>
-                        <button style={styles.resolveBtn}
-                          onClick={() => setResolvingId(isResolving ? null : flag.id)}>
-                          {isResolving ? '✕ Cancel' : '✅ Resolve'}
-                        </button>
-                        {flag.status === 'open' && (
-                          <button style={styles.escalateBtn} onClick={() => handleEscalate(flag.id)}>
-                            🚨 Escalate
+                    {/* Action buttons */}
+                    <div style={styles.flagActions}>
+                      {flag.status !== 'resolved' && (
+                        <>
+                          <button style={styles.resolveBtn}
+                            onClick={() => setResolvingId(isResolving ? null : flag.id)}>
+                            {isResolving ? '✕ Cancel' : '✅ Resolve'}
                           </button>
-                        )}
-                      </div>
-                    )}
+                          {flag.status === 'open' && (
+                            <button style={styles.escalateBtn} onClick={() => handleEscalate(flag.id)}>
+                              🚨 Escalate
+                            </button>
+                          )}
+                        </>
+                      )}
+                      <button style={styles.editBtn} onClick={() => openEdit(flag)}>✏️ Edit</button>
+                      <button style={styles.deleteBtn} onClick={() => handleDelete(flag.id, flag.school_name)}>🗑</button>
+                    </div>
                   </div>
 
                   {/* Resolution input */}
@@ -295,7 +392,9 @@ export default function FlagsAlerts() {
               <div style={{textAlign:'center', padding:'60px 20px', color:'#888'}}>
                 <p style={{fontSize:'48px', margin:'0 0 12px'}}>✅</p>
                 <p style={{fontSize:'16px', fontWeight:'600', color:'#1a2332'}}>No flags found!</p>
-                <p style={{fontSize:'13px'}}>All schools are on track. Great work!</p>
+                <p style={{fontSize:'13px'}}>
+                  {hasFilters ? 'No flags match your filters.' : 'All schools are on track. Great work!'}
+                </p>
               </div>
             )}
           </div>
@@ -314,21 +413,22 @@ const styles = {
   alertBanner: { display:'flex', alignItems:'center', gap:'16px', background:'#fde8e8', border:'1px solid #f5c6c6', borderRadius:'10px', padding:'16px 20px', marginBottom:'20px' },
   alertTitle: { fontSize:'14px', fontWeight:'600', color:'#c0392b', margin:0 },
   alertSub: { fontSize:'12px', color:'#e74c3c', margin:'4px 0 0' },
-  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px' },
-  filters: { display:'flex', gap:'10px', alignItems:'center' },
-  select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
-  clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c' },
-  raiseBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#e74c3c', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
   formBox: { background:'#fff9f9', borderRadius:'10px', padding:'20px', marginBottom:'16px', border:'1px solid #fcc' },
   formTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 16px 0' },
   formGrid: { display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'16px' },
   formField: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   formSelect: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
+  formInput: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', outline:'none' },
   formTextarea: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', outline:'none', resize:'vertical', fontFamily:'inherit', width:'100%', boxSizing:'border-box' },
   formActions: { display:'flex', gap:'12px', marginTop:'16px' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#e74c3c', color:'#fff', fontSize:'14px', fontWeight:'600', cursor:'pointer' },
   cancelBtn: { padding:'10px 24px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', color:'#555', fontSize:'14px', cursor:'pointer' },
+  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
+  filters: { display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap' },
+  select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
+  clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c', fontWeight:'600' },
+  raiseBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#e74c3c', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer', whiteSpace:'nowrap' },
   section: { background:'#fff', borderRadius:'12px', padding:'24px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   sectionTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   sectionSub: { fontSize:'12px', color:'#8a96a3', margin:0 },
@@ -343,6 +443,8 @@ const styles = {
   flagActions: { display:'flex', flexDirection:'column', gap:'8px', flexShrink:0 },
   resolveBtn: { padding:'7px 14px', borderRadius:'7px', border:'none', background:'#eafaf1', color:'#1a8a4a', fontSize:'12px', fontWeight:'600', cursor:'pointer', whiteSpace:'nowrap' },
   escalateBtn: { padding:'7px 14px', borderRadius:'7px', border:'none', background:'#fdedec', color:'#e74c3c', fontSize:'12px', fontWeight:'600', cursor:'pointer', whiteSpace:'nowrap' },
+  editBtn: { padding:'7px 14px', borderRadius:'7px', border:'1.5px solid #69A9C9', background:'#fff', color:'#69A9C9', fontSize:'12px', fontWeight:'600', cursor:'pointer', whiteSpace:'nowrap' },
+  deleteBtn: { padding:'7px 12px', borderRadius:'7px', border:'1.5px solid #e74c3c', background:'#fff', color:'#e74c3c', fontSize:'12px', cursor:'pointer' },
   resolveBox: { marginTop:'12px', padding:'12px', background:'#f8f9fa', borderRadius:'8px' },
   badge: { padding:'3px 10px', borderRadius:'999px', fontSize:'11px', fontWeight:'600', whiteSpace:'nowrap' },
   clubId: { fontSize:'11px', fontFamily:'monospace', color:'#8a96a3', fontWeight:'600' },
