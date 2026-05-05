@@ -31,4 +31,21 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin };
+// ADD these two new functions:
+function requireCoordinator(req, res, next) {
+  const allowed = ['admin', 'programme_coordinator'];
+  if (!allowed.includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Coordinator access required.' });
+  }
+  next();
+}
+
+function requireMentor(req, res, next) {
+  const allowed = ['admin', 'programme_coordinator', 'mentor'];
+  if (!allowed.includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Mentor access required.' });
+  }
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, requireCoordinator, requireMentor };

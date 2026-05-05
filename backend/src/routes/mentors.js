@@ -7,7 +7,7 @@ const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 // ── GET /api/mentors ─────────────────────────────────────────
 // Returns all mentors — admin only
-router.get('/', requireAuth, requireAdmin, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
