@@ -25,15 +25,17 @@ const COUNTY_COLORS = {
   'Kiambu': '#69A9C9', 'Kajiado': '#F7941D', "Murang'a": '#1eb457',
 };
 
+// ── Only the roles that belong in Ecosystem tab ────────────────────────────
 const ROLE_LABELS = {
-  'club_leader':        { label: '⭐ Club Leader',          color: '#2980b9', bg: '#e8f4fd' },
-  'centre_club_leader': { label: '🏢 Centre Club Leader',   color: '#1abc9c', bg: '#e8f8f5' },
-  'additional':         { label: '👩‍🏫 Additional Teacher',   color: '#1eb457', bg: '#eafaf1' },
-  'head_of_school':     { label: '🏫 Head of School',       color: '#8e44ad', bg: '#f5eef8' },
-  'centre_manager':     { label: '🏢 Centre Manager',       color: '#9b59b6', bg: '#f0e6ff' },
-  'ict_intern':         { label: '💻 ICT Intern (CDE)',      color: '#F7941D', bg: '#fdecd5' },
-  'subcounty_director': { label: '📋 Sub-County Director',  color: '#e74c3c', bg: '#fdedec' },
+  'additional':         { label: '👩‍🏫 Additional Educator',   color: '#1eb457', bg: '#eafaf1' },
+  'head_of_school':     { label: '🏫 Head of School',          color: '#8e44ad', bg: '#f5eef8' },
+  'centre_manager':     { label: '🏢 Centre Manager',          color: '#9b59b6', bg: '#f0e6ff' },
+  'ict_intern':         { label: '💻 ICT Intern (CDE)',         color: '#F7941D', bg: '#fdecd5' },
+  'subcounty_director': { label: '📋 Sub-County Director',     color: '#e74c3c', bg: '#fdedec' },
 };
+
+// Roles to EXCLUDE from ecosystem tab (they live in Teachers tab)
+const EXCLUDED_ROLES = ['club_leader', 'centre_club_leader'];
 
 const EMPTY_EXTRA = {
   full_name:'', role:'ict_intern', phone:'', email:'',
@@ -42,29 +44,26 @@ const EMPTY_EXTRA = {
 };
 
 const EMPTY_HOS = {
-  full_name:'', phone:'', email:'', school_id:'',
-  training_completed:false, safeguarding_done:false,
-  role:'head_of_school', county:''
+  full_name:'', phone:'', email:'', school_id:'', role:'head_of_school',
+  training_completed:false, safeguarding_done:false, county:''
 };
 
 export default function Ecosystem() {
-  const [teachers, setTeachers] = useState([]);
-  const [hosList, setHosList] = useState([]);
-  const [extras, setExtras] = useState([]);
-  const [schools, setSchools] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [teachers, setTeachers]     = useState([]);
+  const [hosList, setHosList]       = useState([]);
+  const [extras, setExtras]         = useState([]);
+  const [schools, setSchools]       = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [filterRole, setFilterRole] = useState('');
   const [filterCounty, setFilterCounty] = useState('');
   const [filterTraining, setFilterTraining] = useState('');
-  const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(null); // 'hos' | 'extra'
+  const [search, setSearch]         = useState('');
+  const [showModal, setShowModal]   = useState(null);
   const [editingItem, setEditingItem] = useState(null);
-  const [hosForm, setHosForm] = useState(EMPTY_HOS);
-  const [extraForm, setExtraForm] = useState(EMPTY_EXTRA);
-  const [saving, setSaving] = useState(false);
+  const [hosForm, setHosForm]       = useState(EMPTY_HOS);
+  const [extraForm, setExtraForm]   = useState(EMPTY_EXTRA);
+  const [saving, setSaving]         = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
- 
- 
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,7 +78,6 @@ export default function Ecosystem() {
       setHosList(h.data);
       setExtras(e.data);
       setSchools(s.data);
-      
     } catch (err) {
       console.error(err);
     } finally {
@@ -89,26 +87,29 @@ export default function Ecosystem() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Combine all into one list for display
+  // Combine — EXCLUDE club_leader and centre_club_leader
   const allBuilders = [
-    ...teachers.map(t => ({
-      ...t,
-      _source: 'teacher',
-      school_name: t.school_name,
-      county: t.county,
-      survey_done: null, // teachers don't have survey
-    })),
+    // Additional educators only from teachers table
+    ...teachers
+      .filter(t => t.role === 'additional')
+      .map(t => ({
+        ...t,
+        _source: 'teacher',
+        school_name: t.school_name,
+        county: t.county,
+        survey_done: null,
+      })),
+    // HOS and Centre Managers from hos table
     ...hosList.map(h => ({
       ...h,
       _source: 'hos',
-     role: h.role || 'head_of_school', // use actual role from DB,
+      role: h.role || 'head_of_school',
       survey_done: null,
     })),
-    ...extras.map(e => ({
-      ...e,
-      _source: 'extra',
-      school_name: null,
-    })),
+    // ICT Interns + Sub-County Directors from extras
+    ...extras
+      .filter(e => !EXCLUDED_ROLES.includes(e.role))
+      .map(e => ({ ...e, _source: 'extra', school_name: null })),
   ];
 
   const filtered = allBuilders.filter(b => {
@@ -122,24 +123,22 @@ export default function Ecosystem() {
   });
 
   // Stats
-  const clubLeaders = allBuilders.filter(b => b.role === 'club_leader').length;
-  const hosCount = allBuilders.filter(b => b.role === 'head_of_school').length;
-  const ictInterns = allBuilders.filter(b => b.role === 'ict_intern').length;
-  const directors = allBuilders.filter(b => b.role === 'subcounty_director').length;
-  const trained = allBuilders.filter(b => b.training_completed).length;
-  const safeguarded = allBuilders.filter(b => b.safeguarding_done).length;
-  const centreManagers = allBuilders.filter(b => b.role === 'centre_manager').length;
+  const additionalEdCount = allBuilders.filter(b => b.role === 'additional').length;
+  const hosCount          = allBuilders.filter(b => b.role === 'head_of_school').length;
+  const centreManagers    = allBuilders.filter(b => b.role === 'centre_manager').length;
+  const ictInterns        = allBuilders.filter(b => b.role === 'ict_intern').length;
+  const directors         = allBuilders.filter(b => b.role === 'subcounty_director').length;
+  const trained           = allBuilders.filter(b => b.training_completed).length;
+  const safeguarded       = allBuilders.filter(b => b.safeguarding_done).length;
 
-  // Update training/safeguarding/survey inline
   const handleToggle = async (item, field) => {
-    const newVal = !item[field];
     try {
       if (item._source === 'teacher') {
-        await api.put(`/teachers/${item.id}`, { ...item, [field]: newVal });
+        await api.put(`/teachers/${item.id}`, { ...item, [field]: !item[field] });
       } else if (item._source === 'hos') {
-        await api.put(`/hos/${item.id}`, { ...item, [field]: newVal });
+        await api.put(`/hos/${item.id}`, { ...item, [field]: !item[field] });
       } else if (item._source === 'extra') {
-        await api.put(`/ecosystem-extras/${item.id}`, { ...item, [field]: newVal });
+        await api.put(`/ecosystem-extras/${item.id}`, { ...item, [field]: !item[field] });
       }
       fetchData();
     } catch (err) {
@@ -147,121 +146,69 @@ export default function Ecosystem() {
     }
   };
 
-  const openAddHos = () => {
-    setEditingItem(null);
-    setHosForm(EMPTY_HOS);
-    setShowModal('hos');
-  };
-
+  const openAddHos = () => { setEditingItem(null); setHosForm(EMPTY_HOS); setShowModal('hos'); };
   const openEditHos = (item) => {
     setEditingItem(item);
-    setHosForm({
-      full_name: item.full_name || '',
-      phone: item.phone || '',
-      email: item.email || '',
-      school_id: item.school_id || '',
-      county: item.county || '',
-      training_completed: item.training_completed || false,
-      safeguarding_done: item.safeguarding_done || false,
-    });
+    setHosForm({ full_name:item.full_name||'', phone:item.phone||'', email:item.email||'',
+      school_id:item.school_id||'', county:item.county||'', role:item.role||'head_of_school',
+      training_completed:item.training_completed||false, safeguarding_done:item.safeguarding_done||false });
     setShowModal('hos');
   };
-
-  const openAddExtra = () => {
-    setEditingItem(null);
-    setExtraForm(EMPTY_EXTRA);
-    setShowModal('extra');
-  };
-
+  const openAddExtra  = () => { setEditingItem(null); setExtraForm(EMPTY_EXTRA); setShowModal('extra'); };
   const openEditExtra = (item) => {
     setEditingItem(item);
-    setExtraForm({
-      full_name: item.full_name || '',
-      role: item.role || 'ict_intern',
-      phone: item.phone || '',
-      email: item.email || '',
-      county: item.county || '',
-      subcounty_area: item.subcounty_area || '',
-      training_completed: item.training_completed || false,
-      safeguarding_done: item.safeguarding_done || false,
-      survey_done: item.survey_done || false,
-    });
+    setExtraForm({ full_name:item.full_name||'', role:item.role||'ict_intern', phone:item.phone||'',
+      email:item.email||'', county:item.county||'', subcounty_area:item.subcounty_area||'',
+      training_completed:item.training_completed||false, safeguarding_done:item.safeguarding_done||false,
+      survey_done:item.survey_done||false });
     setShowModal('extra');
   };
 
   const handleSaveHos = async () => {
     setSaving(true);
     try {
-      if (editingItem) {
-        await api.put(`/hos/${editingItem.id}`, hosForm);
-      } else {
-        await api.post('/hos', hosForm);
-      }
-      setShowModal(null);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.error || err.message);
-    } finally {
-      setSaving(false);
-    }
+      if (editingItem) { await api.put(`/hos/${editingItem.id}`, hosForm); }
+      else { await api.post('/hos', hosForm); }
+      setShowModal(null); fetchData();
+    } catch (err) { alert(err.response?.data?.error || err.message); }
+    finally { setSaving(false); }
   };
 
   const handleSaveExtra = async () => {
     setSaving(true);
     try {
-      if (editingItem) {
-        await api.put(`/ecosystem-extras/${editingItem.id}`, extraForm);
-      } else {
-        await api.post('/ecosystem-extras', extraForm);
-      }
-      setShowModal(null);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.error || err.message);
-    } finally {
-      setSaving(false);
-    }
+      if (editingItem) { await api.put(`/ecosystem-extras/${editingItem.id}`, extraForm); }
+      else { await api.post('/ecosystem-extras', extraForm); }
+      setShowModal(null); fetchData();
+    } catch (err) { alert(err.response?.data?.error || err.message); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     try {
-      if (deleteConfirm._source === 'hos') {
-        await api.delete(`/hos/${deleteConfirm.id}`);
-      } else if (deleteConfirm._source === 'extra') {
-        await api.delete(`/ecosystem-extras/${deleteConfirm.id}`);
-      }
-      setDeleteConfirm(null);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete');
-    }
+      if (deleteConfirm._source === 'hos') await api.delete(`/hos/${deleteConfirm.id}`);
+      else if (deleteConfirm._source === 'extra') await api.delete(`/ecosystem-extras/${deleteConfirm.id}`);
+      setDeleteConfirm(null); fetchData();
+    } catch (err) { alert(err.response?.data?.error || 'Failed to delete'); }
   };
 
   const exportCSV = () => {
     const headers = ['Name','Role','School/Centre','County','Training','Safeguarding','Survey'];
     const rows = filtered.map(b => [
       b.full_name, b.role, b.school_name||'', b.county||'',
-      b.training_completed?'Yes':'No',
-      b.safeguarding_done?'Yes':'No',
+      b.training_completed?'Yes':'No', b.safeguarding_done?'Yes':'No',
       b.survey_done!=null?(b.survey_done?'Yes':'No'):'N/A',
     ]);
     const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
     const blob = new Blob([csv],{type:'text/csv'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href=url; a.download='ecosystem_export.csv'; a.click();
+    const a = document.createElement('a'); a.href=url; a.download='ecosystem_export.csv'; a.click();
   };
 
   const ToggleBtn = ({ item, field, yesLabel='✅ Done', noLabel='⏳ Pending', noColor='#a0720a', noBg='#fef9e7' }) => (
-    <span
-      style={{
-        ...styles.checkBadge, cursor:'pointer',
-        background: item[field] ? '#eafaf1' : noBg,
-        color: item[field] ? '#1a8a4a' : noColor,
-      }}
-      onClick={() => handleToggle(item, field)}
-      title="Click to toggle"
-    >
+    <span style={{...styles.checkBadge, cursor:'pointer',
+      background:item[field]?'#eafaf1':noBg, color:item[field]?'#1a8a4a':noColor}}
+      onClick={() => handleToggle(item, field)} title="Click to toggle">
       {item[field] ? yesLabel : noLabel}
     </span>
   );
@@ -272,20 +219,19 @@ export default function Ecosystem() {
       {/* Stat Cards */}
       <div style={styles.cards}>
         {[
-          { label:'TOTAL ECOSYSTEM', value: allBuilders.length, sub:'all categories', color:'#69A9C9' },
-          { label:'CLUB LEADERS', value: clubLeaders, sub:'schools & centres', color:'#2980b9' },
-          { label:'HEADS OF SCHOOL', value: hosCount, sub:'safeguarding sponsors', color:'#8e44ad' },
-          { label:'ICT INTERNS', value: ictInterns, sub:'CDE interns', color:'#F7941D' },
-          { label:'SUB-COUNTY DIRECTORS', value: directors, sub:'education directors', color:'#e74c3c' },
-          { label:'TRAINING DONE', value: trained, sub:`of ${allBuilders.length}`, color:'#1eb457' },
-          { label:'SAFEGUARDING DONE', value: safeguarded, sub:`of ${allBuilders.length}`, color:'#1abc9c' },
-          { label:'CENTRE MANAGERS', value: centreManagers, sub:'community centres', color:'#9b59b6' },
-          
+          { label:'TOTAL ECOSYSTEM',        value:allBuilders.length, sub:'all categories',        color:'#69A9C9' },
+          { label:'CENTRE MANAGERS',         value:centreManagers,     sub:'community centres',     color:'#9b59b6' },
+          { label:'HEADS OF SCHOOL',         value:hosCount,           sub:'safeguarding sponsors', color:'#8e44ad' },
+          { label:'ADDITIONAL EDUCATORS',    value:additionalEdCount,  sub:'extra teachers',        color:'#1eb457' },
+          { label:'ICT INTERNS',             value:ictInterns,         sub:'CDE interns',           color:'#F7941D' },
+          { label:'SUB-COUNTY DIRECTORS',    value:directors,          sub:'education directors',   color:'#e74c3c' },
+          { label:'TRAINING DONE',           value:trained,            sub:`of ${allBuilders.length}`, color:'#1abc9c' },
+          { label:'SAFEGUARDING DONE',       value:safeguarded,        sub:`of ${allBuilders.length}`, color:'#1eb457' },
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
             <p style={styles.cardValue}>{card.value}</p>
-            <p style={{...styles.cardSub, color: card.color}}>{card.sub}</p>
+            <p style={{...styles.cardSub, color:card.color}}>{card.sub}</p>
           </div>
         ))}
       </div>
@@ -296,15 +242,13 @@ export default function Ecosystem() {
           <input style={styles.search} placeholder="🔍 Search name or school..."
             value={search} onChange={e=>setSearch(e.target.value)} />
           <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
-  <option value="">All Roles</option>
-  <option value="club_leader">Club Leaders</option>
-  <option value="additional">Additional Teachers</option>
-  <option value="centre_club_leader">Centre Club Leaders</option>
-  <option value="head_of_school">Heads of School</option>
-  <option value="centre_manager">Centre Managers</option>
-  <option value="ict_intern">ICT Interns</option>
-  <option value="subcounty_director">Sub-County Directors</option>
-</select>
+            <option value="">All Roles</option>
+            <option value="additional">Additional Educators</option>
+            <option value="head_of_school">Heads of School</option>
+            <option value="centre_manager">Centre Managers</option>
+            <option value="ict_intern">ICT Interns</option>
+            <option value="subcounty_director">Sub-County Directors</option>
+          </select>
           <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
             <option value="">All Counties</option>
             {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
@@ -347,7 +291,7 @@ export default function Ecosystem() {
             </thead>
             <tbody>
               {filtered.map((b, i) => {
-                const roleInfo = ROLE_LABELS[b.role] || { label: b.role, color:'#888', bg:'#f0f0f0' };
+                const roleInfo = ROLE_LABELS[b.role] || { label:b.role, color:'#888', bg:'#f0f0f0' };
                 const canEdit = b._source === 'hos' || b._source === 'extra';
                 return (
                   <tr key={`${b._source}-${b.id}`} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
@@ -379,33 +323,35 @@ export default function Ecosystem() {
                       )}
                     </td>
                     <td style={styles.td}>
-                      {canEdit && (
+                      {canEdit ? (
                         <>
-                          <button style={styles.editBtn} onClick={()=> b._source==='hos' ? openEditHos(b) : openEditExtra(b)}>✏️ Edit</button>
+                          <button style={styles.editBtn} onClick={()=>b._source==='hos'?openEditHos(b):openEditExtra(b)}>✏️ Edit</button>
                           <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(b)}>🗑️</button>
                         </>
+                      ) : (
+                        <span style={{color:'#ccc', fontSize:'11px'}}>via Teachers</span>
                       )}
-                      {!canEdit && <span style={{color:'#ccc', fontSize:'11px'}}>via Teachers</span>}
                     </td>
                   </tr>
                 );
               })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} style={{padding:'40px', textAlign:'center', color:'#888'}}>
+                  No records match your filters.
+                </td></tr>
+              )}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* HOS Modal */}
+      {/* HOS / Centre Manager Modal */}
       {showModal === 'hos' && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
-  <h3 style={styles.modalTitle}>
-  {editingItem ? '✏️ Edit' : '+'} {
-    hosForm.school_id && schools.find(s => s.id === hosForm.school_id)?.type === 'community_centre'
-      ? 'Centre Manager'
-      : 'Head of School'
-  }
-</h3>
+            <h3 style={styles.modalTitle}>
+              {editingItem ? '✏️ Edit' : '+'} {hosForm.role === 'centre_manager' ? 'Centre Manager' : 'Head of School'}
+            </h3>
             <div style={styles.formGrid}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Full Name *</label>
@@ -413,21 +359,27 @@ export default function Ecosystem() {
                   onChange={e=>setHosForm({...hosForm,full_name:e.target.value})} />
               </div>
               <div style={styles.formGroup}>
-  <label style={styles.label}>Role</label>
-  <select style={styles.input} value={hosForm.role}
-    onChange={e=>setHosForm({...hosForm,role:e.target.value})}>
-    <option value="head_of_school">🏫 Head of School</option>
-    <option value="centre_manager">🏢 Centre Manager</option>
-  </select>
-</div>
+                <label style={styles.label}>Role</label>
+                <select style={styles.input} value={hosForm.role}
+                  onChange={e=>setHosForm({...hosForm,role:e.target.value})}>
+                  <option value="head_of_school">🏫 Head of School</option>
+                  <option value="centre_manager">🏢 Centre Manager</option>
+                </select>
+              </div>
               <div style={styles.formGroup}>
-              <label style={styles.label}>
-  School / Community Centre
-</label>
+                <label style={styles.label}>School / Community Centre</label>
                 <select style={styles.input} value={hosForm.school_id}
                   onChange={e=>setHosForm({...hosForm,school_id:e.target.value})}>
-                  <option value="">— Select School —</option>
+                  <option value="">— Select —</option>
                   {schools.map(s=><option key={s.id} value={s.id}>{s.official_name} ({s.club_id})</option>)}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>County</label>
+                <select style={styles.input} value={hosForm.county||''}
+                  onChange={e=>setHosForm({...hosForm,county:e.target.value})}>
+                  <option value="">— Select County —</option>
+                  {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div style={styles.formGroup}>
@@ -435,14 +387,6 @@ export default function Ecosystem() {
                 <input style={styles.input} value={hosForm.phone}
                   onChange={e=>setHosForm({...hosForm,phone:e.target.value})} />
               </div>
-              <div style={styles.formGroup}>
-  <label style={styles.label}>County</label>
-  <select style={styles.input} value={hosForm.county || ''}
-    onChange={e=>setHosForm({...hosForm,county:e.target.value})}>
-    <option value="">— Select County —</option>
-    {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
-  </select>
-</div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Email</label>
                 <input style={styles.input} type="email" value={hosForm.email}
@@ -466,10 +410,8 @@ export default function Ecosystem() {
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
               <button style={styles.saveBtn} onClick={handleSaveHos} disabled={saving}>
-  {saving ? 'Saving...' : editingItem ? 'Save Changes' : 
-    hosForm.school_id && schools.find(s => s.id === hosForm.school_id)?.type === 'community_centre'
-      ? 'Add Centre Manager' : 'Add HOS'}
-</button>
+                {saving?'Saving...':editingItem?'Save Changes':'Add Person'}
+              </button>
             </div>
           </div>
         </div>
@@ -564,13 +506,12 @@ export default function Ecosystem() {
           </div>
         </div>
       )}
-
     </Layout>
   );
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'12px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:'12px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
   cardValue: { fontSize:'30px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
