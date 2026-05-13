@@ -25,33 +25,30 @@ const COUNTY_COLORS = {
   'Kiambu': '#69A9C9', 'Kajiado': '#F7941D', "Murang'a": '#1eb457',
 };
 
-// ── Only the roles that belong in Ecosystem tab ────────────────────────────
 const ROLE_LABELS = {
-  'additional':         { label: '👩‍🏫 Additional Educator',   color: '#1eb457', bg: '#eafaf1' },
-  'head_of_school':     { label: '🏫 Head of School',          color: '#8e44ad', bg: '#f5eef8' },
-  'centre_manager':     { label: '🏢 Centre Manager',          color: '#9b59b6', bg: '#f0e6ff' },
-  'ict_intern':         { label: '💻 ICT Intern (CDE)',         color: '#F7941D', bg: '#fdecd5' },
-  'subcounty_director': { label: '📋 Sub-County Director',     color: '#e74c3c', bg: '#fdedec' },
+  'additional':         { label: '👩‍🏫 Additional Educator',  color: '#1eb457', bg: '#eafaf1' },
+  'head_of_school':     { label: '🏫 Head of School',         color: '#8e44ad', bg: '#f5eef8' },
+  'centre_manager':     { label: '🏢 Centre Manager',         color: '#9b59b6', bg: '#f0e6ff' },
+  'ict_intern':         { label: '💻 ICT Intern (CDE)',        color: '#F7941D', bg: '#fdecd5' },
+  'subcounty_director': { label: '📋 Sub-County Director',    color: '#e74c3c', bg: '#fdedec' },
 };
 
-// Roles to EXCLUDE from ecosystem tab (they live in Teachers tab)
-const EXCLUDED_ROLES = ['club_leader', 'centre_club_leader'];
+const EMPTY_HOS = {
+  full_name:'', phone:'', email:'', school_id:'',
+  role:'head_of_school', county:'',
+  training_completed:false, safeguarding_done:false,
+};
 
 const EMPTY_EXTRA = {
   full_name:'', role:'ict_intern', phone:'', email:'',
   county:'', subcounty_area:'',
-  training_completed:false, safeguarding_done:false, survey_done:false
-};
-
-const EMPTY_HOS = {
-  full_name:'', phone:'', email:'', school_id:'', role:'head_of_school',
-  training_completed:false, safeguarding_done:false, county:''
+  training_completed:false, safeguarding_done:false, survey_done:false,
 };
 
 export default function Ecosystem() {
-  const [teachers, setTeachers]     = useState([]);
   const [hosList, setHosList]       = useState([]);
   const [extras, setExtras]         = useState([]);
+  const [additionals, setAdditionals] = useState([]);
   const [schools, setSchools]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [filterRole, setFilterRole] = useState('');
@@ -68,15 +65,16 @@ export default function Ecosystem() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [t, h, e, s] = await Promise.all([
-        api.get('/teachers'),
+      const [h, e, t, s] = await Promise.all([
         api.get('/hos'),
         api.get('/ecosystem-extras'),
+        api.get('/teachers'),
         api.get('/schools'),
       ]);
-      setTeachers(t.data);
       setHosList(h.data);
       setExtras(e.data);
+      // Only additional educators from teachers
+      setAdditionals(t.data.filter(t => t.role === 'additional'));
       setSchools(s.data);
     } catch (err) {
       console.error(err);
@@ -87,29 +85,19 @@ export default function Ecosystem() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Combine — EXCLUDE club_leader and centre_club_leader
+  // Combine all builders — no club leaders or centre club leaders
   const allBuilders = [
-    // Additional educators only from teachers table
-    ...teachers
-      .filter(t => t.role === 'additional')
-      .map(t => ({
-        ...t,
-        _source: 'teacher',
-        school_name: t.school_name,
-        county: t.county,
-        survey_done: null,
-      })),
-    // HOS and Centre Managers from hos table
-    ...hosList.map(h => ({
-      ...h,
-      _source: 'hos',
-      role: h.role || 'head_of_school',
-      survey_done: null,
+    ...additionals.map(t => ({
+      ...t, _source:'teacher',
+      school_name: t.school_name, survey_done: null,
     })),
-    // ICT Interns + Sub-County Directors from extras
-    ...extras
-      .filter(e => !EXCLUDED_ROLES.includes(e.role))
-      .map(e => ({ ...e, _source: 'extra', school_name: null })),
+    ...hosList.map(h => ({
+      ...h, _source:'hos',
+      role: h.role || 'head_of_school', survey_done: null,
+    })),
+    ...extras.map(e => ({
+      ...e, _source:'extra', school_name: null,
+    })),
   ];
 
   const filtered = allBuilders.filter(b => {
@@ -122,14 +110,12 @@ export default function Ecosystem() {
     return true;
   });
 
-  // Stats
-  const additionalEdCount = allBuilders.filter(b => b.role === 'additional').length;
-  const hosCount          = allBuilders.filter(b => b.role === 'head_of_school').length;
-  const centreManagers    = allBuilders.filter(b => b.role === 'centre_manager').length;
-  const ictInterns        = allBuilders.filter(b => b.role === 'ict_intern').length;
-  const directors         = allBuilders.filter(b => b.role === 'subcounty_director').length;
-  const trained           = allBuilders.filter(b => b.training_completed).length;
-  const safeguarded       = allBuilders.filter(b => b.safeguarding_done).length;
+  // Stats — only the 5 categories
+  const centreManagers   = allBuilders.filter(b => b.role === 'centre_manager').length;
+  const hosCount         = allBuilders.filter(b => b.role === 'head_of_school').length;
+  const additionalCount  = allBuilders.filter(b => b.role === 'additional').length;
+  const ictInterns       = allBuilders.filter(b => b.role === 'ict_intern').length;
+  const directors        = allBuilders.filter(b => b.role === 'subcounty_director').length;
 
   const handleToggle = async (item, field) => {
     try {
@@ -146,25 +132,36 @@ export default function Ecosystem() {
     }
   };
 
-  const openAddHos = () => { setEditingItem(null); setHosForm(EMPTY_HOS); setShowModal('hos'); };
+  const openAddHos    = () => { setEditingItem(null); setHosForm(EMPTY_HOS); setShowModal('hos'); };
+  const openAddExtra  = () => { setEditingItem(null); setExtraForm(EMPTY_EXTRA); setShowModal('extra'); };
+
   const openEditHos = (item) => {
     setEditingItem(item);
-    setHosForm({ full_name:item.full_name||'', phone:item.phone||'', email:item.email||'',
-      school_id:item.school_id||'', county:item.county||'', role:item.role||'head_of_school',
-      training_completed:item.training_completed||false, safeguarding_done:item.safeguarding_done||false });
+    setHosForm({
+      full_name: item.full_name||'', phone: item.phone||'', email: item.email||'',
+      school_id: item.school_id||'', role: item.role||'head_of_school',
+      county: item.county||'',
+      training_completed: item.training_completed||false,
+      safeguarding_done: item.safeguarding_done||false,
+    });
     setShowModal('hos');
   };
-  const openAddExtra  = () => { setEditingItem(null); setExtraForm(EMPTY_EXTRA); setShowModal('extra'); };
+
   const openEditExtra = (item) => {
     setEditingItem(item);
-    setExtraForm({ full_name:item.full_name||'', role:item.role||'ict_intern', phone:item.phone||'',
-      email:item.email||'', county:item.county||'', subcounty_area:item.subcounty_area||'',
-      training_completed:item.training_completed||false, safeguarding_done:item.safeguarding_done||false,
-      survey_done:item.survey_done||false });
+    setExtraForm({
+      full_name: item.full_name||'', role: item.role||'ict_intern',
+      phone: item.phone||'', email: item.email||'',
+      county: item.county||'', subcounty_area: item.subcounty_area||'',
+      training_completed: item.training_completed||false,
+      safeguarding_done: item.safeguarding_done||false,
+      survey_done: item.survey_done||false,
+    });
     setShowModal('extra');
   };
 
   const handleSaveHos = async () => {
+    if (!hosForm.full_name) return alert('Full name is required');
     setSaving(true);
     try {
       if (editingItem) { await api.put(`/hos/${editingItem.id}`, hosForm); }
@@ -175,6 +172,7 @@ export default function Ecosystem() {
   };
 
   const handleSaveExtra = async () => {
+    if (!extraForm.full_name) return alert('Full name is required');
     setSaving(true);
     try {
       if (editingItem) { await api.put(`/ecosystem-extras/${editingItem.id}`, extraForm); }
@@ -216,17 +214,14 @@ export default function Ecosystem() {
   return (
     <Layout title="Ecosystem Building" subtitle="Managers · Educators · Partners · RPF 2026">
 
-      {/* Stat Cards */}
+      {/* Stat Cards — 5 categories only */}
       <div style={styles.cards}>
         {[
-          { label:'TOTAL ECOSYSTEM',        value:allBuilders.length, sub:'all categories',        color:'#69A9C9' },
-          { label:'CENTRE MANAGERS',         value:centreManagers,     sub:'community centres',     color:'#9b59b6' },
-          { label:'HEADS OF SCHOOL',         value:hosCount,           sub:'safeguarding sponsors', color:'#8e44ad' },
-          { label:'ADDITIONAL EDUCATORS',    value:additionalEdCount,  sub:'extra teachers',        color:'#1eb457' },
-          { label:'ICT INTERNS',             value:ictInterns,         sub:'CDE interns',           color:'#F7941D' },
-          { label:'SUB-COUNTY DIRECTORS',    value:directors,          sub:'education directors',   color:'#e74c3c' },
-          { label:'TRAINING DONE',           value:trained,            sub:`of ${allBuilders.length}`, color:'#1abc9c' },
-          { label:'SAFEGUARDING DONE',       value:safeguarded,        sub:`of ${allBuilders.length}`, color:'#1eb457' },
+          { label:'CENTRE MANAGERS',      value:centreManagers,  sub:'community centres',     color:'#9b59b6' },
+          { label:'HEADS OF SCHOOL',      value:hosCount,        sub:'safeguarding sponsors',  color:'#8e44ad' },
+          { label:'ADDITIONAL EDUCATORS', value:additionalCount, sub:'extra teachers',         color:'#1eb457' },
+          { label:'ICT INTERNS',          value:ictInterns,      sub:'CDE interns',            color:'#F7941D' },
+          { label:'SUB-COUNTY DIRECTORS', value:directors,       sub:'education directors',    color:'#e74c3c' },
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
@@ -243,9 +238,9 @@ export default function Ecosystem() {
             value={search} onChange={e=>setSearch(e.target.value)} />
           <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
             <option value="">All Roles</option>
-            <option value="additional">Additional Educators</option>
-            <option value="head_of_school">Heads of School</option>
             <option value="centre_manager">Centre Managers</option>
+            <option value="head_of_school">Heads of School</option>
+            <option value="additional">Additional Educators</option>
             <option value="ict_intern">ICT Interns</option>
             <option value="subcounty_director">Sub-County Directors</option>
           </select>
@@ -304,7 +299,9 @@ export default function Ecosystem() {
                     <td style={styles.td}>{b.school_name||'—'}</td>
                     <td style={styles.td}>
                       {b.county && (
-                        <span style={{...styles.countyBadge, background:(COUNTY_COLORS[b.county]||'#888')+'20', color:COUNTY_COLORS[b.county]||'#888'}}>
+                        <span style={{...styles.countyBadge,
+                          background:(COUNTY_COLORS[b.county]||'#888')+'20',
+                          color:COUNTY_COLORS[b.county]||'#888'}}>
                           {b.county}
                         </span>
                       )}
@@ -313,7 +310,8 @@ export default function Ecosystem() {
                       <ToggleBtn item={b} field="training_completed" noLabel="⏳ Pending" />
                     </td>
                     <td style={styles.td}>
-                      <ToggleBtn item={b} field="safeguarding_done" noLabel="❌ Not done" noColor="#e74c3c" noBg="#fdedec" />
+                      <ToggleBtn item={b} field="safeguarding_done"
+                        noLabel="❌ Not done" noColor="#e74c3c" noBg="#fdedec" />
                     </td>
                     <td style={styles.td}>
                       {b.survey_done !== null ? (
@@ -325,7 +323,10 @@ export default function Ecosystem() {
                     <td style={styles.td}>
                       {canEdit ? (
                         <>
-                          <button style={styles.editBtn} onClick={()=>b._source==='hos'?openEditHos(b):openEditExtra(b)}>✏️ Edit</button>
+                          <button style={styles.editBtn}
+                            onClick={()=>b._source==='hos'?openEditHos(b):openEditExtra(b)}>
+                            ✏️ Edit
+                          </button>
                           <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(b)}>🗑️</button>
                         </>
                       ) : (
@@ -417,11 +418,13 @@ export default function Ecosystem() {
         </div>
       )}
 
-      {/* ICT Intern / Sub-County Director Modal */}
+      {/* ICT / Director Modal */}
       {showModal === 'extra' && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>{editingItem ? '✏️ Edit Person' : '+ Add ICT Intern / Sub-County Director'}</h3>
+            <h3 style={styles.modalTitle}>
+              {editingItem ? '✏️ Edit Person' : '+ Add ICT Intern / Sub-County Director'}
+            </h3>
             <div style={styles.formGrid}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Full Name *</label>
@@ -434,6 +437,7 @@ export default function Ecosystem() {
                   onChange={e=>setExtraForm({...extraForm,role:e.target.value})}>
                   <option value="ict_intern">💻 ICT Intern (CDE)</option>
                   <option value="subcounty_director">📋 Sub-County Director</option>
+                  <option value="centre_manager">🏢 Centre Manager</option>
                 </select>
               </div>
               <div style={styles.formGroup}>
@@ -497,7 +501,7 @@ export default function Ecosystem() {
           <div style={{...styles.modal, maxWidth:'400px'}}>
             <h3 style={{color:'#e74c3c',margin:'0 0 12px'}}>⚠️ Delete Person</h3>
             <p style={{color:'#555',margin:'0 0 20px'}}>
-              Are you sure you want to delete <strong>{deleteConfirm.full_name}</strong>?
+              Delete <strong>{deleteConfirm.full_name}</strong>? This cannot be undone.
             </p>
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setDeleteConfirm(null)}>Cancel</button>
@@ -511,11 +515,11 @@ export default function Ecosystem() {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:'12px', marginBottom:'20px' },
-  card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
-  cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
-  cardValue: { fontSize:'30px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
-  cardSub: { fontSize:'11px', margin:0, fontWeight:'500' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'16px', marginBottom:'20px' },
+  card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
+  cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
+  cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
+  cardSub: { fontSize:'12px', margin:0, fontWeight:'500' },
   filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
   filters: { display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center' },
   search: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', outline:'none', minWidth:'200px' },
