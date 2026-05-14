@@ -33,12 +33,15 @@ const ROLE_LABELS = {
   'subcounty_director': { label: '📋 Sub-County Director',    color: '#e74c3c', bg: '#fdedec' },
 };
 
+const EMPTY_ADDITIONAL = {
+  full_name:'', phone:'', email:'', school_id:'',
+  training_completed:false, safeguarding_done:false, survey_done:false,
+};
 const EMPTY_HOS = {
   full_name:'', phone:'', email:'', school_id:'',
   role:'head_of_school', county:'',
-  training_completed:false, safeguarding_done:false,
+  training_completed:false, safeguarding_done:false, survey_done:false,
 };
-
 const EMPTY_EXTRA = {
   full_name:'', role:'ict_intern', phone:'', email:'',
   county:'', subcounty_area:'',
@@ -46,20 +49,27 @@ const EMPTY_EXTRA = {
 };
 
 export default function Ecosystem() {
-  const [hosList, setHosList]       = useState([]);
-  const [extras, setExtras]         = useState([]);
+  const [hosList, setHosList]         = useState([]);
+  const [extras, setExtras]           = useState([]);
   const [additionals, setAdditionals] = useState([]);
-  const [schools, setSchools]       = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [filterRole, setFilterRole] = useState('');
-  const [filterCounty, setFilterCounty] = useState('');
+  const [schools, setSchools]         = useState([]);
+  const [loading, setLoading]         = useState(true);
+
+  // Filters
+  const [filterRole, setFilterRole]       = useState('');
+  const [filterCounty, setFilterCounty]   = useState('');
   const [filterTraining, setFilterTraining] = useState('');
-  const [search, setSearch]         = useState('');
-  const [showModal, setShowModal]   = useState(null);
-  const [editingItem, setEditingItem] = useState(null);
-  const [hosForm, setHosForm]       = useState(EMPTY_HOS);
-  const [extraForm, setExtraForm]   = useState(EMPTY_EXTRA);
-  const [saving, setSaving]         = useState(false);
+  const [filterSafeguarding, setFilterSafeguarding] = useState('');
+  const [filterSurvey, setFilterSurvey]   = useState('');
+  const [search, setSearch]               = useState('');
+
+  // Modals
+  const [showModal, setShowModal]         = useState(null); // 'additional' | 'hos' | 'extra'
+  const [editingItem, setEditingItem]     = useState(null);
+  const [additionalForm, setAdditionalForm] = useState(EMPTY_ADDITIONAL);
+  const [hosForm, setHosForm]             = useState(EMPTY_HOS);
+  const [extraForm, setExtraForm]         = useState(EMPTY_EXTRA);
+  const [saving, setSaving]               = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const fetchData = async () => {
@@ -73,30 +83,29 @@ export default function Ecosystem() {
       ]);
       setHosList(h.data);
       setExtras(e.data);
-      // Only additional educators from teachers
       setAdditionals(t.data.filter(t => t.role === 'additional'));
       setSchools(s.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  // Combine all builders — no club leaders or centre club leaders
+  // Combine all — survey_done defaults to false for teachers/hos if not set
   const allBuilders = [
     ...additionals.map(t => ({
       ...t, _source:'teacher',
-      school_name: t.school_name, survey_done: null,
+      school_name: t.school_name,
+      survey_done: t.survey_done ?? false,
     })),
     ...hosList.map(h => ({
       ...h, _source:'hos',
-      role: h.role || 'head_of_school', survey_done: null,
+      role: h.role || 'head_of_school',
+      survey_done: h.survey_done ?? false,
     })),
     ...extras.map(e => ({
-      ...e, _source:'extra', school_name: null,
+      ...e, _source:'extra',
+      school_name: null,
     })),
   ];
 
@@ -105,59 +114,91 @@ export default function Ecosystem() {
     if (filterCounty && b.county !== filterCounty) return false;
     if (filterTraining === 'yes' && !b.training_completed) return false;
     if (filterTraining === 'no' && b.training_completed) return false;
+    if (filterSafeguarding === 'yes' && !b.safeguarding_done) return false;
+    if (filterSafeguarding === 'no' && b.safeguarding_done) return false;
+    if (filterSurvey === 'yes' && !b.survey_done) return false;
+    if (filterSurvey === 'no' && b.survey_done) return false;
     if (search && !b.full_name?.toLowerCase().includes(search.toLowerCase()) &&
         !b.school_name?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  // Stats — only the 5 categories
-  const centreManagers   = allBuilders.filter(b => b.role === 'centre_manager').length;
-  const hosCount         = allBuilders.filter(b => b.role === 'head_of_school').length;
-  const additionalCount  = allBuilders.filter(b => b.role === 'additional').length;
-  const ictInterns       = allBuilders.filter(b => b.role === 'ict_intern').length;
-  const directors        = allBuilders.filter(b => b.role === 'subcounty_director').length;
+  // Stats
+  const centreManagers  = allBuilders.filter(b => b.role === 'centre_manager').length;
+  const hosCount        = allBuilders.filter(b => b.role === 'head_of_school').length;
+  const additionalCount = allBuilders.filter(b => b.role === 'additional').length;
+  const ictInterns      = allBuilders.filter(b => b.role === 'ict_intern').length;
+  const directors       = allBuilders.filter(b => b.role === 'subcounty_director').length;
 
+  // Toggle training/safeguarding/survey
   const handleToggle = async (item, field) => {
+    const newVal = !item[field];
     try {
       if (item._source === 'teacher') {
-        await api.put(`/teachers/${item.id}`, { ...item, [field]: !item[field] });
+        await api.put(`/teachers/${item.id}`, { ...item, [field]: newVal });
       } else if (item._source === 'hos') {
-        await api.put(`/hos/${item.id}`, { ...item, [field]: !item[field] });
+        await api.put(`/hos/${item.id}`, { ...item, [field]: newVal });
       } else if (item._source === 'extra') {
-        await api.put(`/ecosystem-extras/${item.id}`, { ...item, [field]: !item[field] });
+        await api.put(`/ecosystem-extras/${item.id}`, { ...item, [field]: newVal });
       }
       fetchData();
-    } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update');
+    } catch (err) { alert(err.response?.data?.error || 'Failed to update'); }
+  };
+
+  // ── Open modals ────────────────────────────────────────────────────────────
+  const openAdd = (type) => {
+    setEditingItem(null);
+    if (type === 'additional') setAdditionalForm(EMPTY_ADDITIONAL);
+    if (type === 'hos')        setHosForm(EMPTY_HOS);
+    if (type === 'extra')      setExtraForm(EMPTY_EXTRA);
+    setShowModal(type);
+  };
+
+  const openEdit = (item) => {
+    setEditingItem(item);
+    if (item._source === 'teacher') {
+      setAdditionalForm({
+        full_name: item.full_name||'', phone: item.phone||'', email: item.email||'',
+        school_id: item.school_id||'',
+        training_completed: item.training_completed||false,
+        safeguarding_done:  item.safeguarding_done||false,
+        survey_done:        item.survey_done||false,
+      });
+      setShowModal('additional');
+    } else if (item._source === 'hos') {
+      setHosForm({
+        full_name: item.full_name||'', phone: item.phone||'', email: item.email||'',
+        school_id: item.school_id||'', role: item.role||'head_of_school',
+        county: item.county||'',
+        training_completed: item.training_completed||false,
+        safeguarding_done:  item.safeguarding_done||false,
+        survey_done:        item.survey_done||false,
+      });
+      setShowModal('hos');
+    } else if (item._source === 'extra') {
+      setExtraForm({
+        full_name: item.full_name||'', role: item.role||'ict_intern',
+        phone: item.phone||'', email: item.email||'',
+        county: item.county||'', subcounty_area: item.subcounty_area||'',
+        training_completed: item.training_completed||false,
+        safeguarding_done:  item.safeguarding_done||false,
+        survey_done:        item.survey_done||false,
+      });
+      setShowModal('extra');
     }
   };
 
-  const openAddHos    = () => { setEditingItem(null); setHosForm(EMPTY_HOS); setShowModal('hos'); };
-  const openAddExtra  = () => { setEditingItem(null); setExtraForm(EMPTY_EXTRA); setShowModal('extra'); };
-
-  const openEditHos = (item) => {
-    setEditingItem(item);
-    setHosForm({
-      full_name: item.full_name||'', phone: item.phone||'', email: item.email||'',
-      school_id: item.school_id||'', role: item.role||'head_of_school',
-      county: item.county||'',
-      training_completed: item.training_completed||false,
-      safeguarding_done: item.safeguarding_done||false,
-    });
-    setShowModal('hos');
-  };
-
-  const openEditExtra = (item) => {
-    setEditingItem(item);
-    setExtraForm({
-      full_name: item.full_name||'', role: item.role||'ict_intern',
-      phone: item.phone||'', email: item.email||'',
-      county: item.county||'', subcounty_area: item.subcounty_area||'',
-      training_completed: item.training_completed||false,
-      safeguarding_done: item.safeguarding_done||false,
-      survey_done: item.survey_done||false,
-    });
-    setShowModal('extra');
+  // ── Save handlers ──────────────────────────────────────────────────────────
+  const handleSaveAdditional = async () => {
+    if (!additionalForm.full_name) return alert('Full name is required');
+    setSaving(true);
+    try {
+      const payload = { ...additionalForm, role: 'additional' };
+      if (editingItem) { await api.put(`/teachers/${editingItem.id}`, payload); }
+      else { await api.post('/teachers', payload); }
+      setShowModal(null); fetchData();
+    } catch (err) { alert(err.response?.data?.error || err.message); }
+    finally { setSaving(false); }
   };
 
   const handleSaveHos = async () => {
@@ -184,7 +225,8 @@ export default function Ecosystem() {
 
   const handleDelete = async () => {
     try {
-      if (deleteConfirm._source === 'hos') await api.delete(`/hos/${deleteConfirm.id}`);
+      if (deleteConfirm._source === 'teacher') await api.delete(`/teachers/${deleteConfirm.id}`);
+      else if (deleteConfirm._source === 'hos') await api.delete(`/hos/${deleteConfirm.id}`);
       else if (deleteConfirm._source === 'extra') await api.delete(`/ecosystem-extras/${deleteConfirm.id}`);
       setDeleteConfirm(null); fetchData();
     } catch (err) { alert(err.response?.data?.error || 'Failed to delete'); }
@@ -194,8 +236,9 @@ export default function Ecosystem() {
     const headers = ['Name','Role','School/Centre','County','Training','Safeguarding','Survey'];
     const rows = filtered.map(b => [
       b.full_name, b.role, b.school_name||'', b.county||'',
-      b.training_completed?'Yes':'No', b.safeguarding_done?'Yes':'No',
-      b.survey_done!=null?(b.survey_done?'Yes':'No'):'N/A',
+      b.training_completed?'Yes':'No',
+      b.safeguarding_done?'Yes':'No',
+      b.survey_done?'Yes':'No',
     ]);
     const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
     const blob = new Blob([csv],{type:'text/csv'});
@@ -203,7 +246,7 @@ export default function Ecosystem() {
     const a = document.createElement('a'); a.href=url; a.download='ecosystem_export.csv'; a.click();
   };
 
-  const ToggleBtn = ({ item, field, yesLabel='✅ Done', noLabel='⏳ Pending', noColor='#a0720a', noBg='#fef9e7' }) => (
+  const ToggleBtn = ({ item, field, yesLabel='✅ Done', noLabel='❌ Not done', noColor='#e74c3c', noBg='#fdedec' }) => (
     <span style={{...styles.checkBadge, cursor:'pointer',
       background:item[field]?'#eafaf1':noBg, color:item[field]?'#1a8a4a':noColor}}
       onClick={() => handleToggle(item, field)} title="Click to toggle">
@@ -211,17 +254,28 @@ export default function Ecosystem() {
     </span>
   );
 
+  // ── Shared form checkbox row ───────────────────────────────────────────────
+  const CheckRow = ({ label, checked, onChange }) => (
+    <div style={styles.checkRow}>
+      <label style={styles.checkLabel}>
+        <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} />
+        {' '}{label}
+      </label>
+    </div>
+  );
+
   return (
     <Layout title="Ecosystem Building" subtitle="Managers · Educators · Partners · RPF 2026">
 
-      {/* Stat Cards — 5 categories only */}
+      {/* Stat Cards — 5 categories + total */}
       <div style={styles.cards}>
         {[
           { label:'CENTRE MANAGERS',      value:centreManagers,  sub:'community centres',     color:'#9b59b6' },
-          { label:'HEADS OF SCHOOL',      value:hosCount,        sub:'safeguarding sponsors',  color:'#8e44ad' },
-          { label:'ADDITIONAL EDUCATORS', value:additionalCount, sub:'extra teachers',         color:'#1eb457' },
-          { label:'ICT INTERNS',          value:ictInterns,      sub:'CDE interns',            color:'#F7941D' },
-          { label:'SUB-COUNTY DIRECTORS', value:directors,       sub:'education directors',    color:'#e74c3c' },
+          { label:'HEADS OF SCHOOL',       value:hosCount,        sub:'safeguarding sponsors',  color:'#8e44ad' },
+          { label:'ADDITIONAL EDUCATORS',  value:additionalCount, sub:'extra teachers',         color:'#1eb457' },
+          { label:'ICT INTERNS',           value:ictInterns,      sub:'CDE interns',            color:'#F7941D' },
+          { label:'SUB-COUNTY DIRECTORS',  value:directors,       sub:'education directors',    color:'#e74c3c' },
+          { label:'TOTAL ECOSYSTEM',       value:allBuilders.length, sub:'all categories',      color:'#69A9C9' },
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
@@ -250,17 +304,28 @@ export default function Ecosystem() {
           </select>
           <select style={styles.select} value={filterTraining} onChange={e=>setFilterTraining(e.target.value)}>
             <option value="">All Training</option>
-            <option value="yes">Training Complete</option>
-            <option value="no">Not Trained</option>
+            <option value="yes">✅ Training Done</option>
+            <option value="no">❌ Not Trained</option>
           </select>
-          {(filterRole||filterCounty||filterTraining||search) && (
-            <button style={styles.clearBtn} onClick={()=>{setFilterRole('');setFilterCounty('');setFilterTraining('');setSearch('');}}>✕ Clear</button>
+          <select style={styles.select} value={filterSafeguarding} onChange={e=>setFilterSafeguarding(e.target.value)}>
+            <option value="">All Safeguarding</option>
+            <option value="yes">✅ Safeguarding Done</option>
+            <option value="no">❌ Not Done</option>
+          </select>
+          <select style={styles.select} value={filterSurvey} onChange={e=>setFilterSurvey(e.target.value)}>
+            <option value="">All Survey</option>
+            <option value="yes">✅ Survey Done</option>
+            <option value="no">❌ Not Done</option>
+          </select>
+          {(filterRole||filterCounty||filterTraining||filterSafeguarding||filterSurvey||search) && (
+            <button style={styles.clearBtn} onClick={()=>{setFilterRole('');setFilterCounty('');setFilterTraining('');setFilterSafeguarding('');setFilterSurvey('');setSearch('');}}>✕ Clear</button>
           )}
         </div>
         <div style={styles.actions}>
           <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
-          <button style={styles.hosBtn} onClick={openAddHos}>+ Add HOS / Centre Manager</button>
-          <button style={styles.addBtn} onClick={openAddExtra}>+ Add ICT/Director</button>
+          <button style={styles.additionalBtn} onClick={()=>openAdd('additional')}>+ Add Additional Educator</button>
+          <button style={styles.hosBtn} onClick={()=>openAdd('hos')}>+ Add HOS / Centre Manager</button>
+          <button style={styles.addBtn} onClick={()=>openAdd('extra')}>+ Add ICT/Director</button>
         </div>
       </div>
 
@@ -287,7 +352,6 @@ export default function Ecosystem() {
             <tbody>
               {filtered.map((b, i) => {
                 const roleInfo = ROLE_LABELS[b.role] || { label:b.role, color:'#888', bg:'#f0f0f0' };
-                const canEdit = b._source === 'hos' || b._source === 'extra';
                 return (
                   <tr key={`${b._source}-${b.id}`} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
                     <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{b.full_name}</td>
@@ -298,40 +362,31 @@ export default function Ecosystem() {
                     </td>
                     <td style={styles.td}>{b.school_name||'—'}</td>
                     <td style={styles.td}>
-                      {b.county && (
+                      {b.county ? (
                         <span style={{...styles.countyBadge,
                           background:(COUNTY_COLORS[b.county]||'#888')+'20',
                           color:COUNTY_COLORS[b.county]||'#888'}}>
                           {b.county}
                         </span>
-                      )}
+                      ) : '—'}
                     </td>
                     <td style={styles.td}>
-                      <ToggleBtn item={b} field="training_completed" noLabel="⏳ Pending" />
+                      <ToggleBtn item={b} field="training_completed"
+                        yesLabel="✅ Done" noLabel="⏳ Pending" noColor="#a0720a" noBg="#fef9e7" />
                     </td>
                     <td style={styles.td}>
                       <ToggleBtn item={b} field="safeguarding_done"
-                        noLabel="❌ Not done" noColor="#e74c3c" noBg="#fdedec" />
+                        yesLabel="✅ Done" noLabel="❌ Not done" />
                     </td>
                     <td style={styles.td}>
-                      {b.survey_done !== null ? (
-                        <ToggleBtn item={b} field="survey_done" noLabel="⏳ Pending" />
-                      ) : (
-                        <span style={{color:'#ccc', fontSize:'12px'}}>N/A</span>
-                      )}
+                      <ToggleBtn item={b} field="survey_done"
+                        yesLabel="✅ Done" noLabel="⏳ Pending" noColor="#a0720a" noBg="#fef9e7" />
                     </td>
                     <td style={styles.td}>
-                      {canEdit ? (
-                        <>
-                          <button style={styles.editBtn}
-                            onClick={()=>b._source==='hos'?openEditHos(b):openEditExtra(b)}>
-                            ✏️ Edit
-                          </button>
-                          <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(b)}>🗑️</button>
-                        </>
-                      ) : (
-                        <span style={{color:'#ccc', fontSize:'11px'}}>via Teachers</span>
-                      )}
+                      <div style={{display:'flex', gap:'6px'}}>
+                        <button style={styles.editBtn} onClick={()=>openEdit(b)}>✏️ Edit</button>
+                        <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(b)}>🗑️</button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -346,7 +401,55 @@ export default function Ecosystem() {
         )}
       </div>
 
-      {/* HOS / Centre Manager Modal */}
+      {/* ── Additional Educator Modal ──────────────────────────────────────── */}
+      {showModal === 'additional' && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>{editingItem ? '✏️ Edit' : '+'} Additional Educator</h3>
+            <div style={styles.formGrid}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Full Name *</label>
+                <input style={styles.input} value={additionalForm.full_name}
+                  onChange={e=>setAdditionalForm({...additionalForm,full_name:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>School / Centre</label>
+                <select style={styles.input} value={additionalForm.school_id}
+                  onChange={e=>setAdditionalForm({...additionalForm,school_id:e.target.value})}>
+                  <option value="">— Select —</option>
+                  {schools.map(s=><option key={s.id} value={s.id}>{s.official_name}</option>)}
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Phone</label>
+                <input style={styles.input} value={additionalForm.phone}
+                  onChange={e=>setAdditionalForm({...additionalForm,phone:e.target.value})} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Email</label>
+                <input style={styles.input} type="email" value={additionalForm.email}
+                  onChange={e=>setAdditionalForm({...additionalForm,email:e.target.value})} />
+              </div>
+            </div>
+            <div style={styles.checkboxGroup}>
+              <CheckRow label="Training Completed" checked={additionalForm.training_completed}
+                onChange={v=>setAdditionalForm({...additionalForm,training_completed:v})} />
+              <CheckRow label="Safeguarding Done" checked={additionalForm.safeguarding_done}
+                onChange={v=>setAdditionalForm({...additionalForm,safeguarding_done:v})} />
+              <CheckRow label="Survey Done" checked={additionalForm.survey_done}
+                onChange={v=>setAdditionalForm({...additionalForm,survey_done:v})} />
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
+              <button style={styles.saveBtn} onClick={handleSaveAdditional} disabled={saving}>
+                {saving?'Saving...':editingItem?'Save Changes':'Add Educator'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── HOS / Centre Manager Modal ─────────────────────────────────────── */}
       {showModal === 'hos' && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
@@ -393,20 +496,14 @@ export default function Ecosystem() {
                 <input style={styles.input} type="email" value={hosForm.email}
                   onChange={e=>setHosForm({...hosForm,email:e.target.value})} />
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  <input type="checkbox" checked={hosForm.training_completed}
-                    onChange={e=>setHosForm({...hosForm,training_completed:e.target.checked})} />
-                  {' '}Training Completed
-                </label>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  <input type="checkbox" checked={hosForm.safeguarding_done}
-                    onChange={e=>setHosForm({...hosForm,safeguarding_done:e.target.checked})} />
-                  {' '}Safeguarding Done
-                </label>
-              </div>
+            </div>
+            <div style={styles.checkboxGroup}>
+              <CheckRow label="Training Completed" checked={hosForm.training_completed}
+                onChange={v=>setHosForm({...hosForm,training_completed:v})} />
+              <CheckRow label="Safeguarding Done" checked={hosForm.safeguarding_done}
+                onChange={v=>setHosForm({...hosForm,safeguarding_done:v})} />
+              <CheckRow label="Survey Done" checked={hosForm.survey_done||false}
+                onChange={v=>setHosForm({...hosForm,survey_done:v})} />
             </div>
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
@@ -418,7 +515,7 @@ export default function Ecosystem() {
         </div>
       )}
 
-      {/* ICT / Director Modal */}
+      {/* ── ICT / Director Modal ───────────────────────────────────────────── */}
       {showModal === 'extra' && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
@@ -463,27 +560,14 @@ export default function Ecosystem() {
                 <input style={styles.input} value={extraForm.subcounty_area}
                   onChange={e=>setExtraForm({...extraForm,subcounty_area:e.target.value})} />
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  <input type="checkbox" checked={extraForm.training_completed}
-                    onChange={e=>setExtraForm({...extraForm,training_completed:e.target.checked})} />
-                  {' '}Training Completed
-                </label>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  <input type="checkbox" checked={extraForm.safeguarding_done}
-                    onChange={e=>setExtraForm({...extraForm,safeguarding_done:e.target.checked})} />
-                  {' '}Safeguarding Done
-                </label>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  <input type="checkbox" checked={extraForm.survey_done}
-                    onChange={e=>setExtraForm({...extraForm,survey_done:e.target.checked})} />
-                  {' '}Survey Done
-                </label>
-              </div>
+            </div>
+            <div style={styles.checkboxGroup}>
+              <CheckRow label="Training Completed" checked={extraForm.training_completed}
+                onChange={v=>setExtraForm({...extraForm,training_completed:v})} />
+              <CheckRow label="Safeguarding Done" checked={extraForm.safeguarding_done}
+                onChange={v=>setExtraForm({...extraForm,safeguarding_done:v})} />
+              <CheckRow label="Survey Done" checked={extraForm.survey_done}
+                onChange={v=>setExtraForm({...extraForm,survey_done:v})} />
             </div>
             <div style={styles.modalActions}>
               <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
@@ -515,20 +599,21 @@ export default function Ecosystem() {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'16px', marginBottom:'20px' },
-  card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
-  cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
-  cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
-  cardSub: { fontSize:'12px', margin:0, fontWeight:'500' },
-  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
-  filters: { display:'flex', gap:'10px', flexWrap:'wrap', alignItems:'center' },
-  search: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', outline:'none', minWidth:'200px' },
-  select: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'14px', marginBottom:'20px' },
+  card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
+  cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
+  cardValue: { fontSize:'32px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
+  cardSub: { fontSize:'11px', margin:0, fontWeight:'500' },
+  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
+  filters: { display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' },
+  search: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', outline:'none', minWidth:'180px' },
+  select: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'12px', color:'#333', background:'#fff', cursor:'pointer' },
   clearBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#e74c3c' },
-  actions: { display:'flex', gap:'10px' },
-  exportBtn: { padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
-  hosBtn: { padding:'8px 16px', borderRadius:'8px', border:'none', background:'#8e44ad', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
-  addBtn: { padding:'8px 16px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
+  actions: { display:'flex', gap:'8px', flexWrap:'wrap' },
+  exportBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#555' },
+  additionalBtn: { padding:'8px 14px', borderRadius:'8px', border:'none', background:'#1eb457', color:'#fff', fontSize:'12px', fontWeight:'600', cursor:'pointer' },
+  hosBtn: { padding:'8px 14px', borderRadius:'8px', border:'none', background:'#8e44ad', color:'#fff', fontSize:'12px', fontWeight:'600', cursor:'pointer' },
+  addBtn: { padding:'8px 14px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'12px', fontWeight:'600', cursor:'pointer' },
   tableCard: { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflow:'hidden' },
   tableHeader: { padding:'20px 24px', borderBottom:'1px solid #f0f0f0' },
   tableTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
@@ -536,19 +621,22 @@ const styles = {
   table: { width:'100%', borderCollapse:'collapse' },
   thead: { background:'#f8f9fa' },
   th: { padding:'10px 16px', textAlign:'left', fontSize:'11px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', borderBottom:'2px solid #f0f0f0', whiteSpace:'nowrap' },
-  td: { padding:'12px 16px', fontSize:'13px', color:'#4a5568' },
+  td: { padding:'10px 16px', fontSize:'13px', color:'#4a5568' },
   roleBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600', whiteSpace:'nowrap' },
   countyBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
-  checkBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600', whiteSpace:'nowrap' },
-  editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9', marginRight:'6px' },
+  checkBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'11px', fontWeight:'600', whiteSpace:'nowrap' },
+  editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9' },
   deleteBtn: { padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
   overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
   modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'600px', maxHeight:'85vh', overflowY:'auto' },
   modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
-  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
+  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'16px' },
   formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },
+  checkboxGroup: { display:'flex', gap:'24px', padding:'12px 0', borderTop:'1px solid #f0f0f0', marginBottom:'16px' },
+  checkRow: { display:'flex', alignItems:'center' },
+  checkLabel: { fontSize:'13px', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' },
   modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
   cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#8e44ad', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
