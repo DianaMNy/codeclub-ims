@@ -2,9 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
-// GET /api/teachers — all teachers with school info
+// GET /api/teachers
 router.get('/', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -27,28 +27,29 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-
-const { requireAdmin } = require('../middleware/auth');
-
 // POST /api/teachers
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done } = req.body;
+    const { school_id, full_name, role, phone, email, ict_confidence,
+            training_completed, safeguarding_done, survey_done } = req.body;
     const result = await pool.query(`
-      INSERT INTO teachers (school_id, full_name, role, phone, email, ict_confidence, training_completed, safeguarding_done)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      INSERT INTO teachers (school_id, full_name, role, phone, email, ict_confidence,
+                            training_completed, safeguarding_done, survey_done)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *
-    `, [school_id, full_name, role || 'club_leader', phone, email, ict_confidence || 'beginner', training_completed || false, safeguarding_done || false]);
-   // Auto-update school with club leader info
-if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
-  await pool.query(`
-    UPDATE schools_and_centres 
-    SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
-    WHERE id=$4
-  `, [full_name, phone || null, email || null, school_id]);
-}
+    `, [school_id||null, full_name, role||'club_leader', phone||null, email||null,
+        ict_confidence||'beginner', training_completed||false,
+        safeguarding_done||false, survey_done||false]);
+
+    // Auto-update school with club leader info
+    if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
+      await pool.query(`
+        UPDATE schools_and_centres 
+        SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
+        WHERE id=$4
+      `, [full_name, phone||null, email||null, school_id]);
+    }
     res.status(201).json(result.rows[0]);
-    
   } catch (err) {
     console.error('Create teacher error:', err.message);
     res.status(500).json({ error: err.message });
@@ -58,34 +59,32 @@ if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
 // PUT /api/teachers/:id
 router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { 
-      school_id, full_name, role, phone, email, ict_confidence, 
-      training_completed, safeguarding_done,
-      training_date, safeguarding_date
-    } = req.body;
+    const { school_id, full_name, role, phone, email, ict_confidence,
+            training_completed, safeguarding_done, survey_done,
+            training_date, safeguarding_date } = req.body;
 
     const result = await pool.query(`
       UPDATE teachers SET
         school_id=$1, full_name=$2, role=$3, phone=$4, email=$5,
         ict_confidence=$6, training_completed=$7, safeguarding_done=$8,
-        training_date=$9, safeguarding_date=$10
-      WHERE id=$11
+        survey_done=$9, training_date=$10, safeguarding_date=$11
+      WHERE id=$12
       RETURNING *
-    `, [school_id, full_name, role, phone, email, ict_confidence, 
-        training_completed, safeguarding_done,
-        training_date || null, safeguarding_date || null,
+    `, [school_id||null, full_name, role, phone||null, email||null,
+        ict_confidence||'beginner', training_completed, safeguarding_done,
+        survey_done||false, training_date||null, safeguarding_date||null,
         req.params.id]);
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Teacher not found' });
 
     // Auto-update school with club leader info
-  if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
-  await pool.query(`
-    UPDATE schools_and_centres 
-    SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
-    WHERE id=$4
-  `, [full_name, phone || null, email || null, school_id]);
-}
+    if ((role === 'club_leader' || role === 'centre_club_leader') && school_id) {
+      await pool.query(`
+        UPDATE schools_and_centres 
+        SET club_leader_name=$1, club_leader_phone=$2, club_leader_email=$3
+        WHERE id=$4
+      `, [full_name, phone||null, email||null, school_id]);
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update teacher error:', err.message);
