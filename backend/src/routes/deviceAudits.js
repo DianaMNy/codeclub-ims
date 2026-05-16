@@ -11,9 +11,11 @@ const ensureDeviceAuditTable = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS device_audits (
       id SERIAL PRIMARY KEY,
-      school_id INTEGER NOT NULL REFERENCES schools_and_centres(id) ON DELETE CASCADE,
-      mentor_id INTEGER REFERENCES mentors(id) ON DELETE SET NULL,
-      created_by_user_id INTEGER,
+      school_id TEXT NOT NULL,
+      school_name_snapshot TEXT,
+      county_snapshot TEXT,
+      mentor_id TEXT,
+      created_by_user_id TEXT,
       audit_date DATE NOT NULL DEFAULT CURRENT_DATE,
       coding_club_id TEXT,
       school_type TEXT,
@@ -22,16 +24,30 @@ const ensureDeviceAuditTable = async () => {
       functioning_devices INTEGER NOT NULL DEFAULT 0,
       faulty_devices INTEGER NOT NULL DEFAULT 0,
       comments TEXT,
+      source_file TEXT,
+      source_sheet TEXT,
+      source_row INTEGER,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  await pool.query(`ALTER TABLE device_audits DROP CONSTRAINT IF EXISTS device_audits_school_id_fkey`);
+  await pool.query(`ALTER TABLE device_audits DROP CONSTRAINT IF EXISTS device_audits_mentor_id_fkey`);
+  await pool.query(`ALTER TABLE device_audits ALTER COLUMN school_id TYPE TEXT USING school_id::text`);
+  await pool.query(`ALTER TABLE device_audits ALTER COLUMN mentor_id TYPE TEXT USING mentor_id::text`);
+  await pool.query(`ALTER TABLE device_audits ALTER COLUMN created_by_user_id TYPE TEXT USING created_by_user_id::text`);
+  await pool.query(`ALTER TABLE device_audits ADD COLUMN IF NOT EXISTS school_name_snapshot TEXT`);
+  await pool.query(`ALTER TABLE device_audits ADD COLUMN IF NOT EXISTS county_snapshot TEXT`);
+  await pool.query(`ALTER TABLE device_audits ADD COLUMN IF NOT EXISTS source_file TEXT`);
+  await pool.query(`ALTER TABLE device_audits ADD COLUMN IF NOT EXISTS source_sheet TEXT`);
+  await pool.query(`ALTER TABLE device_audits ADD COLUMN IF NOT EXISTS source_row INTEGER`);
   tableReady = true;
 };
 
 const getSchoolDetails = async (schoolId) => {
   const result = await pool.query(
-    `SELECT id, club_id, type FROM schools_and_centres WHERE id = $1`,
+    `SELECT id, official_name, club_id, type, county FROM schools_and_centres WHERE id::text = $1`,
     [schoolId]
   );
   return result.rows[0] || {};
@@ -40,14 +56,14 @@ const getSchoolDetails = async (schoolId) => {
 const auditQuery = `
   SELECT
     da.*,
-    sc.official_name AS school_name,
-    sc.club_id,
-    sc.type AS school_type_current,
-    sc.county,
+    COALESCE(sc.official_name, da.school_name_snapshot) AS school_name,
+    COALESCE(sc.club_id, da.coding_club_id) AS club_id,
+    COALESCE(sc.type, da.school_type) AS school_type_current,
+    COALESCE(sc.county, da.county_snapshot) AS county,
     m.full_name AS mentor_name
   FROM device_audits da
-  LEFT JOIN schools_and_centres sc ON da.school_id = sc.id
-  LEFT JOIN mentors m ON da.mentor_id = m.id
+  LEFT JOIN schools_and_centres sc ON da.school_id = sc.id::text
+  LEFT JOIN mentors m ON da.mentor_id = m.id::text
 `;
 
 const applyAccessFilters = ({ req, filters, params }) => {
@@ -60,7 +76,7 @@ const applyAccessFilters = ({ req, filters, params }) => {
     const mentorParam = `$${params.length}`;
     params.push(user_id || null);
     const userParam = `$${params.length}`;
-    filters.push(`(da.mentor_id = ${mentorParam} OR sc.mentor_id = ${mentorParam} OR da.created_by_user_id = ${userParam})`);
+    filters.push(`(da.mentor_id = ${mentorParam} OR sc.mentor_id::text = ${mentorParam} OR da.created_by_user_id = ${userParam})`);
   } else {
     params.push(user_id || null);
     filters.push(`da.created_by_user_id = $${params.length}`);
@@ -105,15 +121,17 @@ router.post('/', requireAuth, async (req, res) => {
     const school = await getSchoolDetails(school_id);
     const result = await pool.query(
       `INSERT INTO device_audits
-        (school_id, mentor_id, created_by_user_id, audit_date, coding_club_id,
-         school_type, device_type, total_devices, functioning_devices,
+        (school_id, school_name_snapshot, county_snapshot, mentor_id, created_by_user_id,
+         audit_date, coding_club_id, school_type, device_type, total_devices, functioning_devices,
          faulty_devices, comments)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [
         school_id,
-        req.user.mentor_id || null,
-        req.user.id || null,
+        school.official_name || null,
+        school.county || null,
+        req.user.mentor_id ? String(req.user.mentor_id) : null,
+        req.user.id ? String(req.user.id) : null,
         audit_date || new Date().toISOString().slice(0, 10),
         school.club_id || null,
         school.type || null,
@@ -146,19 +164,23 @@ router.put('/:id', requireAuth, async (req, res) => {
     const result = await pool.query(
       `UPDATE device_audits SET
         school_id            = $1,
-        audit_date           = $2,
-        coding_club_id       = $3,
-        school_type          = $4,
-        device_type          = $5,
-        total_devices        = $6,
-        functioning_devices  = $7,
-        faulty_devices       = $8,
-        comments             = $9,
+        school_name_snapshot = $2,
+        county_snapshot      = $3,
+        audit_date           = $4,
+        coding_club_id       = $5,
+        school_type          = $6,
+        device_type          = $7,
+        total_devices        = $8,
+        functioning_devices  = $9,
+        faulty_devices       = $10,
+        comments             = $11,
         updated_at           = NOW()
-       WHERE id = $10
+       WHERE id = $12
        RETURNING *`,
       [
         school_id,
+        school.official_name || null,
+        school.county || null,
         audit_date || new Date().toISOString().slice(0, 10),
         school.club_id || null,
         school.type || null,

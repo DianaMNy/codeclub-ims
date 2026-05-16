@@ -118,11 +118,14 @@ const AUDIT_INIT = {
   school_id: '',
   audit_date: new Date().toISOString().split('T')[0],
   device_type: '',
+  custom_device_type: '',
   total_devices: '',
   functioning_devices: '',
   faulty_devices: '',
   comments: '',
 };
+
+const DEVICE_TYPE_OPTIONS = ['Desktops', 'Laptops', 'Projectors', 'Tablets', 'Phones', 'Other'];
 
 export default function MandE() {
   const [tab, setTab]             = useState('observations');
@@ -272,11 +275,13 @@ export default function MandE() {
   };
 
   const openAuditEdit = (audit) => {
+    const knownDeviceType = DEVICE_TYPE_OPTIONS.includes(audit.device_type);
     setAuditEditId(audit.id);
     setAuditForm({
       school_id: audit.school_id ? String(audit.school_id) : '',
       audit_date: audit.audit_date ? audit.audit_date.split('T')[0] : '',
-      device_type: audit.device_type || '',
+      device_type: knownDeviceType ? audit.device_type : (audit.device_type ? 'Other' : ''),
+      custom_device_type: knownDeviceType ? '' : (audit.device_type || ''),
       total_devices: audit.total_devices ?? '',
       functioning_devices: audit.functioning_devices ?? '',
       faulty_devices: audit.faulty_devices ?? '',
@@ -294,7 +299,10 @@ export default function MandE() {
 
   const handleAuditSave = async () => {
     if (!auditForm.school_id) return alert('Please select a school or centre');
-    if (!auditForm.device_type.trim()) return alert('Device type is required');
+    const deviceType = auditForm.device_type === 'Other'
+      ? auditForm.custom_device_type.trim()
+      : auditForm.device_type.trim();
+    if (!deviceType) return alert('Device type is required');
     const total = parseInt(auditForm.total_devices, 10) || 0;
     const functioning = parseInt(auditForm.functioning_devices, 10) || 0;
     const faulty = parseInt(auditForm.faulty_devices, 10) || 0;
@@ -302,7 +310,8 @@ export default function MandE() {
 
     setAuditSaving(true);
     try {
-      const payload = { ...auditForm, total_devices: total, functioning_devices: functioning, faulty_devices: faulty };
+      const { custom_device_type, ...rest } = auditForm;
+      const payload = { ...rest, device_type: deviceType, total_devices: total, functioning_devices: functioning, faulty_devices: faulty };
       if (auditEditId) await api.put(`/device-audits/${auditEditId}`, payload);
       else await api.post('/device-audits', payload);
       closeAuditForm();
@@ -360,6 +369,15 @@ export default function MandE() {
   const DT=deviceAudits.reduce((s,a)=>s+(parseInt(a.total_devices)||0),0);
   const DF=deviceAudits.reduce((s,a)=>s+(parseInt(a.functioning_devices)||0),0);
   const DB=deviceAudits.reduce((s,a)=>s+(parseInt(a.faulty_devices)||0),0);
+  const deviceTypeStats = Object.values(deviceAudits.reduce((acc, audit) => {
+    const type = audit.device_type || 'Other';
+    if (!acc[type]) acc[type] = { type, records:0, total:0, functioning:0, faulty:0 };
+    acc[type].records += 1;
+    acc[type].total += parseInt(audit.total_devices) || 0;
+    acc[type].functioning += parseInt(audit.functioning_devices) || 0;
+    acc[type].faulty += parseInt(audit.faulty_devices) || 0;
+    return acc;
+  }, {})).sort((a,b)=>b.total-a.total);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   const inp = { width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1.5px solid #e2e8f0', fontSize:'15px', color:'#333', outline:'none', boxSizing:'border-box', background:'#fff' };
@@ -806,6 +824,30 @@ export default function MandE() {
           ))}
         </div>
 
+        {deviceTypeStats.length > 0 && (
+          <div style={{background:'#fff',borderRadius:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',padding:'18px',marginBottom:'20px'}}>
+            <p style={{fontSize:'15px',fontWeight:'600',color:'#1a2332',margin:'0 0 12px'}}>Device analytics by type</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'10px'}}>
+              {deviceTypeStats.map(stat => {
+                const workingRate = stat.total ? Math.min(100, Math.round((stat.functioning / stat.total) * 100)) : 0;
+                return (
+                  <div key={stat.type} style={{background:'#f8f9fa',borderRadius:'10px',padding:'12px',border:'1px solid #eef2f7'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',marginBottom:'8px'}}>
+                      <span style={{fontSize:'13px',fontWeight:'700',color:'#1a2332'}}>{stat.type}</span>
+                      <span style={{fontSize:'11px',fontWeight:'700',color:'#2980b9'}}>{stat.records} record{stat.records===1?'':'s'}</span>
+                    </div>
+                    <p style={{fontSize:'26px',fontWeight:'700',color:'#1eb457',margin:'0 0 4px'}}>{stat.total}</p>
+                    <p style={{fontSize:'12px',color:'#555',margin:'0 0 8px'}}>{stat.functioning} functioning · {stat.faulty} faulty</p>
+                    <div style={{height:'6px',background:'#e2e8f0',borderRadius:'999px',overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${workingRate}%`,background:workingRate>=75?'#1eb457':workingRate>=50?'#F7941D':'#e74c3c'}}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div style={{background:'#fff',borderRadius:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',padding:'20px',marginBottom:'20px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
             <div>
@@ -848,8 +890,17 @@ export default function MandE() {
                 </div>
                 <div>
                   <label style={lbl}>Device type *</label>
-                  <input style={inp} value={auditForm.device_type} onChange={e=>setAuditForm(f=>({...f,device_type:e.target.value}))} placeholder="Laptop, tablet, desktop..."/>
+                  <select style={inp} value={auditForm.device_type} onChange={e=>setAuditForm(f=>({...f,device_type:e.target.value,custom_device_type:e.target.value==='Other'?f.custom_device_type:''}))}>
+                    <option value="">— Select device type —</option>
+                    {DEVICE_TYPE_OPTIONS.map(type => <option key={type} value={type}>{type}</option>)}
+                  </select>
                 </div>
+                {auditForm.device_type === 'Other' && (
+                  <div>
+                    <label style={lbl}>Other device type *</label>
+                    <input style={inp} value={auditForm.custom_device_type} onChange={e=>setAuditForm(f=>({...f,custom_device_type:e.target.value}))} placeholder="Describe device type"/>
+                  </div>
+                )}
                 <div>
                   <label style={lbl}>Total devices</label>
                   <input style={inp} type="number" min="0" value={auditForm.total_devices} onChange={e=>setAuditForm(f=>({...f,total_devices:e.target.value}))} placeholder="0"/>
@@ -861,6 +912,11 @@ export default function MandE() {
                 <div>
                   <label style={lbl}>Faulty</label>
                   <input style={inp} type="number" min="0" value={auditForm.faulty_devices} onChange={e=>setAuditForm(f=>({...f,faulty_devices:e.target.value}))} placeholder="0"/>
+                </div>
+                <div>
+                  <label style={lbl}>Condition check</label>
+                  <input style={{...inp,background:'#fff',color:(parseInt(auditForm.functioning_devices,10)||0)+(parseInt(auditForm.faulty_devices,10)||0)>(parseInt(auditForm.total_devices,10)||0)?'#e74c3c':'#1a8a4a'}}
+                    value={`${(parseInt(auditForm.functioning_devices,10)||0) + (parseInt(auditForm.faulty_devices,10)||0)} / ${parseInt(auditForm.total_devices,10)||0} accounted for`} readOnly/>
                 </div>
                 <div style={{gridColumn:'1 / -1'}}>
                   <label style={lbl}>Comments</label>
