@@ -30,16 +30,19 @@ const ENGAGEMENT_RATINGS = ['Very Active','Active','Moderate','Low'];
 const CONFIDENCE_LEVELS  = ['Very Confident','Confident','Developing','Needs Support'];
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Multiple days'];
 
+// Stable input — uses local state so typing never loses focus
 const StableInput = ({ value, onChange, type='text', placeholder='', style={}, readOnly=false }) => {
-  const ref = useRef(null);
-  useEffect(() => { if (ref.current && document.activeElement !== ref.current) ref.current.value = value??''; }, [value]);
-  return <input ref={ref} type={type} placeholder={placeholder} readOnly={readOnly} style={style} defaultValue={value??''} onChange={e => onChange(e.target.value)} />;
+  const [local, setLocal] = useState(value??'');
+  useEffect(() => { setLocal(value??''); }, [value]);
+  return <input type={type} placeholder={placeholder} readOnly={readOnly} style={style}
+    value={local} onChange={e => { setLocal(e.target.value); onChange(e.target.value); }} />;
 };
 
 const StableTextarea = ({ value, onChange, placeholder='', rows=3, style={} }) => {
-  const ref = useRef(null);
-  useEffect(() => { if (ref.current && document.activeElement !== ref.current) ref.current.value = value??''; }, [value]);
-  return <textarea ref={ref} placeholder={placeholder} rows={rows} style={{...style, resize:'vertical'}} defaultValue={value??''} onChange={e => onChange(e.target.value)} />;
+  const [local, setLocal] = useState(value??'');
+  useEffect(() => { setLocal(value??''); }, [value]);
+  return <textarea placeholder={placeholder} rows={rows} style={{...style, resize:'vertical'}}
+    value={local} onChange={e => { setLocal(e.target.value); onChange(e.target.value); }} />;
 };
 
 export default function MandE() {
@@ -327,7 +330,7 @@ export default function MandE() {
               <Field label="Level reached">
                 <select style={S.inp} value={form.scratch_level} onChange={e=>set('scratch_level',e.target.value)} disabled={!form.pathway_id}>
                   <option value="">— {form.pathway_id?'Select level':'Select pathway first'} —</option>
-                  {form.pathway_id&&['Level 1','Level 2','Level 3','Optional Module 1','Optional Module 2','Optional Module 3'].map(l=><option key={l} value={l}>{l}</option>)}
+                  {(selectedPathway?.levelsArr||[]).map(l=><option key={l.key} value={l.label}>{l.label} — {l.name}</option>)}
                 </select>
               </Field>
               <Field label="Are learners creating individual/peer projects?" full>
@@ -337,7 +340,7 @@ export default function MandE() {
                 <Field label="Which project? (from pathway)">
                   <select style={S.inp} value={form.project_id} onChange={e=>set('project_id',e.target.value)}>
                     <option value="">— Select project —</option>
-                    {(selectedPathway?.projects||[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                    {(selectedPathway?.projectsArr||[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                     <option value="other">Other / Not listed</option>
                   </select>
                 </Field>
