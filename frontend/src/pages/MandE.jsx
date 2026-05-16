@@ -51,7 +51,7 @@ export default function MandE() {
     setLoading(true);
     try {
       const [s, v, p, t] = await Promise.all([
-        api.get('/visits/my-schools'),
+        api.get('/schools'),
         api.get('/visits'),
         api.get('/visits/pathways-with-projects'),
         api.get('/teachers'),
@@ -239,19 +239,33 @@ export default function MandE() {
 
         <div style={row}>
           <label style={lbl}>School / Community Centre *</label>
-          <select style={inp} value={form.school_id} onChange={upd('school_id')}>
+          <select style={inp} value={form.school_id} onChange={e => {
+            const schoolId = e.target.value;
+            const school = schools.find(s => s.id === schoolId);
+            // Auto-populate teacher from school's club leader
+            const clubLeader = teachers.find(t => t.school_id === schoolId && t.role === 'club_leader');
+            setForm(f => ({
+              ...f,
+              school_id: schoolId,
+              teacher_id: clubLeader?.id || f.teacher_id,
+            }));
+          }}>
             <option value="">— Select school or centre —</option>
             {schools.map(s => (
               <option key={s.id} value={s.id}>
-                {s.official_name} ({s.club_id}) — {s.county} — {s.type === 'community_centre' ? 'Centre' : 'School'}
+                {s.official_name} ({s.club_id}) — {s.county} — {s.type === 'community_centre' ? '🏢 Centre' : '🏫 School'}
               </option>
             ))}
           </select>
-          {form.school_id && (
-            <p style={{margin:'6px 0 0',fontSize:'13px',color:'#1eb457',fontWeight:'600'}}>
-              📍 This will be Visit #{visitCountForSchool + 1} for this club
-            </p>
-          )}
+          {form.school_id && (() => {
+            const school = schools.find(s => s.id === form.school_id);
+            return (
+              <div style={{marginTop:'6px', fontSize:'13px', color:'#1eb457', fontWeight:'600'}}>
+                📍 Visit #{visitCountForSchool + 1}
+                {school?.mentor_name && ` · 👤 Mentor: ${school.mentor_name}`}
+              </div>
+            );
+          })()}
         </div>
 
         <div style={row}>
