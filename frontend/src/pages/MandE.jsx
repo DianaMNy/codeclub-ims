@@ -33,6 +33,7 @@ export default function MandE() {
   const [schools, setSchools]     = useState([]);
   const [visits, setVisits]       = useState([]);
   const [pathways, setPathways]   = useState([]);
+  const [teachers, setTeachers]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [view, setView]           = useState('list'); // 'list' | 'form' | 'history'
   const [editId, setEditId]       = useState(null);
@@ -49,14 +50,16 @@ export default function MandE() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [s, v, p] = await Promise.all([
+      const [s, v, p, t] = await Promise.all([
         api.get('/visits/my-schools'),
         api.get('/visits'),
         api.get('/visits/pathways-with-projects'),
+        api.get('/teachers'),
       ]);
       setSchools(s.data);
       setVisits(v.data);
       setPathways(p.data);
+      setTeachers(t.data);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -81,7 +84,7 @@ export default function MandE() {
 
   const openEdit = (v) => {
     setForm({
-      school_id: v.school_id||'',
+      school_id: v.school_id||'', teacher_id: v.teacher_id||'',
       date_of_visit: v.date_of_visit?.split('T')[0]||'',
       engagement_type: v.engagement_type||'Physical Visit',
       latitude: v.latitude||'', longitude: v.longitude||'',
@@ -127,6 +130,7 @@ export default function MandE() {
     setSaving(true);
     const payload = {
       ...form,
+      teacher_id: form.teacher_id || null,
       club_running: form.club_running === 'yes',
       creating_projects: form.creating_projects === 'yes',
       recommended_star_club: form.recommended_star_club === 'yes',
@@ -250,6 +254,22 @@ export default function MandE() {
           )}
         </div>
 
+        <div style={row}>
+          <label style={lbl}>Club Leader / Centre Club Leader</label>
+          <select style={inp} value={form.teacher_id} onChange={upd('teacher_id')}>
+            <option value="">— Select club leader —</option>
+            {teachers
+              .filter(t => ['club_leader','centre_club_leader','additional'].includes(t.role))
+              .filter(t => !form.school_id || t.school_id === form.school_id)
+              .map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.full_name} ({t.role === 'club_leader' ? 'Club Leader' : t.role === 'centre_club_leader' ? 'Centre Club Leader' : 'Additional'})
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
         <div style={row2}>
           <div>
             <label style={lbl}>Date of Visit *</label>
@@ -363,7 +383,13 @@ export default function MandE() {
           <label style={lbl}>What Scratch level have learners reached?</label>
           <select style={inp} value={form.scratch_level} onChange={upd('scratch_level')} disabled={!form.pathway_id}>
             <option value="">— {form.pathway_id?'Select level':'Select pathway first'} —</option>
-            {LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
+            {selPathway && (() => {
+              const lvls = typeof selPathway.levels === 'string' ? JSON.parse(selPathway.levels) : (selPathway.levels || {});
+              const labelMap = { l1:'Level 1', l2:'Level 2', l3:'Level 3', optional_1:'Optional Module 1', optional_2:'Optional Module 2', optional_3:'Optional Module 3' };
+              return Object.entries(lvls).map(([k, v]) => (
+                <option key={k} value={labelMap[k]||k}>{labelMap[k]||k} — {v}</option>
+              ));
+            })()}
           </select>
         </div>
         <div style={row}>
@@ -382,7 +408,12 @@ export default function MandE() {
             <label style={lbl}>Which project?</label>
             <select style={inp} value={form.project_name} onChange={upd('project_name')}>
               <option value="">— Select project —</option>
-              {projects.map((p,i)=><option key={i} value={p}>{p}</option>)}
+              {(() => {
+                const projs = selPathway?.projects
+                  ? (typeof selPathway.projects === 'string' ? JSON.parse(selPathway.projects) : selPathway.projects)
+                  : [];
+                return projs.map((p,i) => <option key={i} value={p}>{p}</option>);
+              })()}
               <option value="Other">Other / Not listed</option>
             </select>
           </div>
