@@ -30,6 +30,7 @@ const REPORTS = [
   { key:'mentor-activity', label:'👤 Mentor Activity',         desc:'Mentor performance and school coverage' },
   { key:'school-progress', label:'🏫 School Progress',         desc:'Per-school status, observations and flags' },
   { key:'safeguarding',    label:'🛡️ Safeguarding Compliance', desc:'Training and safeguarding completion rates' },
+  { key:'device-audit',    label:'💻 Device Audit',            desc:'Device health across all coding clubs' },
 ];
 
 function ProgressBar({ value, max, color }) {
@@ -59,16 +60,25 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function Reports() {
   const [activeReport, setActiveReport] = useState('summary');
   const [data, setData]                 = useState(null);
+  const [deviceData, setDeviceData]     = useState(null);
   const [loading, setLoading]           = useState(false);
   const [exporting, setExporting]       = useState(false);
   const [dateFrom, setDateFrom]         = useState('2025-01-01');
   const [dateTo, setDateTo]             = useState('2026-12-31');
   const [filterCounty, setFilterCounty] = useState('');
+  const [filterDeviceType, setFilterDeviceType] = useState('');
 
   const loadReport = async (key) => {
     setLoading(true); setData(null);
-    try { const res = await api.get(`/reports/${key}`); setData(res.data); }
-    catch (err) { console.error(err); }
+    try {
+      if (key === 'device-audit') {
+        const res = await api.get('/device-audits');
+        setDeviceData(res.data);
+      } else {
+        const res = await api.get(`/reports/${key}`);
+        setData(res.data);
+      }
+    } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
@@ -79,8 +89,8 @@ export default function Reports() {
     setExporting(true);
     try {
       const dr = `${dateFrom} to ${dateTo}`;
-      if (activeReport==='summary')          await exportProgrammeSummaryPDF(data, dr);
-      else if (activeReport==='county')      await exportCountyPDF(data, dr);
+      if (activeReport==='summary')              await exportProgrammeSummaryPDF(data, dr);
+      else if (activeReport==='county')          await exportCountyPDF(data, dr);
       else if (activeReport==='mentor-activity') await exportMentorActivityPDF(data, dr);
       else if (activeReport==='school-progress') await exportSchoolProgressPDF(data, dr, filterCounty);
       else if (activeReport==='safeguarding')    await exportSafeguardingPDF(data, dr);
@@ -88,17 +98,35 @@ export default function Reports() {
   };
 
   const exportCSV = () => {
+    if (activeReport === 'device-audit' && deviceData) {
+      const headers = ['School','County','Device Type','Total','Functioning','Faulty','Comments','Date'];
+      const rows = deviceData.map(d => [
+        d.school_name||'', d.county||'', d.device_type||'',
+        d.total_devices||0, d.functioning||0, d.faulty||0,
+        d.comments||'', d.audit_date||'',
+      ]);
+      const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='device_audit_report.csv'; a.click();
+      return;
+    }
     if (!data) return;
     let rows = [], headers = [];
     if (activeReport==='summary') {
       headers = ['Metric','Value'];
       rows = [
-        ['Total Schools',data.schools.total],['Active Clubs',data.schools.active],
-        ['Community Centres',data.schools.centres],['Total Learners',data.schools.learners],
-        ['Total Mentors',data.mentors.total],['Active Mentors',data.mentors.active],
-        ['Total Teachers',data.teachers.total],['Training Completed',data.teachers.trained],
-        ['Safeguarding Done',data.teachers.safeguarded],['Session Observations',data.observations.total],
+        ['Total Schools',data.schools.total],
+        ['Community Centres',data.schools.centres],
+        ['Total Coding Clubs',parseInt(data.schools.active||0)+parseInt(data.schools.centres||0)],
+        ['Active Clubs',data.schools.active],
+        ['Total Learners',data.schools.learners],
+        ['Active Mentors',data.mentors.active],
         ['Open Flags',data.flags.open],
+        ['Total Teachers',data.teachers.total],
+        ['Training Completed',data.teachers.trained],
+        ['Safeguarding Done',data.teachers.safeguarded],
+        ['Session Observations',data.observations.total],
       ];
     } else if (Array.isArray(data)) {
       headers = Object.keys(data[0]||{});
@@ -110,11 +138,33 @@ export default function Reports() {
     const a = document.createElement('a'); a.href=url; a.download=`${activeReport}_report.csv`; a.click();
   };
 
-  // Chart data
+  // Device audit analytics
+  const deviceAudits = deviceData || [];
+  const filteredDevices = filterDeviceType
+    ? deviceAudits.filter(d => d.device_type === filterDeviceType)
+    : deviceAudits;
+
+  const totalDevices     = filteredDevices.reduce((s,d) => s+(parseInt(d.total_devices)||0), 0);
+  const totalFunctioning = filteredDevices.reduce((s,d) => s+(parseInt(d.functioning)||0), 0);
+  const totalFaulty      = filteredDevices.reduce((s,d) => s+(parseInt(d.faulty)||0), 0);
+  const funcRate         = totalDevices ? Math.round((totalFunctioning/totalDevices)*100) : 0;
+
+  const deviceTypeData = ['Desktops','Laptops','Projectors','Tablets','Phones','Other'].map(type => ({
+    name: type,
+    Total:       deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.total_devices)||0),0),
+    Functioning: deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.functioning)||0),0),
+    Faulty:      deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.faulty)||0),0),
+  })).filter(d => d.Total > 0);
+
+  // Summary chart data
+  const totalCodingClubs = data?.schools
+    ? parseInt(data.schools.active||0) + parseInt(data.schools.centres||0)
+    : 0;
+
   const summaryPieData = data?.schools ? [
-    { name:'Active Clubs', value:parseInt(data.schools.active),   fill:BRAND.green },
-    { name:'Not Started',  value:parseInt(data.schools.total)-parseInt(data.schools.active)-parseInt(data.schools.centres), fill:BRAND.orange },
-    { name:'Centres',      value:parseInt(data.schools.centres),  fill:BRAND.blue },
+    { name:'Active Clubs',  value:parseInt(data.schools.active),   fill:BRAND.green },
+    { name:'Not Started',   value:Math.max(0, parseInt(data.schools.total)-parseInt(data.schools.active)-parseInt(data.schools.centres)), fill:BRAND.orange },
+    { name:'Centres',       value:parseInt(data.schools.centres),  fill:BRAND.blue },
   ] : [];
 
   const healthBarData = data?.teachers ? [
@@ -147,9 +197,11 @@ export default function Reports() {
             <p style={styles.sectionSub}>RPF 2026 · EmpServe Kenya · Live data</p>
           </div>
           <div style={{display:'flex',gap:'10px',alignItems:'center',flexWrap:'wrap'}}>
-            <input type="date" style={styles.dateInput} value={dateFrom} onChange={e=>setDateFrom(e.target.value)} />
-            <span style={{color:'#888',fontSize:'13px'}}>to</span>
-            <input type="date" style={styles.dateInput} value={dateTo} onChange={e=>setDateTo(e.target.value)} />
+            {activeReport !== 'device-audit' && (<>
+              <input type="date" style={styles.dateInput} value={dateFrom} onChange={e=>setDateFrom(e.target.value)} />
+              <span style={{color:'#888',fontSize:'13px'}}>to</span>
+              <input type="date" style={styles.dateInput} value={dateTo} onChange={e=>setDateTo(e.target.value)} />
+            </>)}
             {activeReport==='school-progress' && (
               <select style={styles.dateInput} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
                 <option value="">All Counties</option>
@@ -158,30 +210,39 @@ export default function Reports() {
                 <option value="Murang'a">Murang'a</option>
               </select>
             )}
+            {activeReport==='device-audit' && (
+              <select style={styles.dateInput} value={filterDeviceType} onChange={e=>setFilterDeviceType(e.target.value)}>
+                <option value="">All Device Types</option>
+                {['Desktops','Laptops','Projectors','Tablets','Phones','Other'].map(t=>(
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            )}
             <button style={styles.exportBtn} onClick={exportCSV}>↓ CSV</button>
-            <button style={{...styles.pdfBtn, opacity:exporting?0.7:1}} onClick={handleExportPDF} disabled={exporting}>
-              {exporting ? '⏳ Generating...' : '↓ PDF Report'}
-            </button>
+            {activeReport !== 'device-audit' && (
+              <button style={{...styles.pdfBtn, opacity:exporting?0.7:1}} onClick={handleExportPDF} disabled={exporting}>
+                {exporting ? '⏳ Generating...' : '↓ PDF Report'}
+              </button>
+            )}
           </div>
         </div>
 
         {loading ? (
           <p style={{color:'#888',padding:'40px',textAlign:'center'}}>Loading report...</p>
-        ) : !data ? (
-          <p style={{color:'#888',padding:'40px',textAlign:'center'}}>Loading report data...</p>
         ) : (
           <>
             {/* ── PROGRAMME SUMMARY ─────────────────────────────────────── */}
-            {activeReport==='summary' && data.schools && (
+            {activeReport==='summary' && data?.schools && (
               <div>
+                {/* NEW stat order: Schools | Centres | Total Coding Clubs | Learners | Active Mentors | Open Flags */}
                 <div style={styles.summaryGrid}>
                   {[
-                    { label:'Total Schools',  value:data.schools.total,                                  sub:'enrolled',         color:BRAND.blue },
-                    { label:'Active Clubs',   value:data.schools.active,                                 sub:'running sessions', color:BRAND.green },
-                    { label:'Comm. Centres',  value:data.schools.centres,                                sub:'across 3 counties',color:BRAND.orange },
-                    { label:'Total Learners', value:parseInt(data.schools.learners||0).toLocaleString(), sub:'registered',       color:BRAND.purple },
-                    { label:'Active Mentors', value:data.mentors.active,                                 sub:`of ${data.mentors.total} total`, color:BRAND.teal },
-                    { label:'Open Flags',     value:data.flags.open,                                     sub:'need attention',   color:BRAND.red },
+                    { label:'Schools',           value:data.schools.total,                                    sub:'code clubs registered',    color:BRAND.blue },
+                    { label:'Community Centres',  value:data.schools.centres,                                  sub:'across 3 counties',        color:BRAND.purple },
+                    { label:'Total Coding Clubs', value:totalCodingClubs,                                      sub:'active schools + centres',  color:BRAND.green },
+                    { label:'Learners Registered',value:parseInt(data.schools.learners||0).toLocaleString(),  sub:'young coders reached',      color:BRAND.teal },
+                    { label:'Active Youth Mentors',value:data.mentors.active,                                  sub:`of ${data.mentors.total} mentors`, color:BRAND.orange },
+                    { label:'Open Flags',         value:data.flags.open,                                       sub:'need attention',            color:BRAND.red },
                   ].map(c => (
                     <div key={c.label} style={{...styles.summaryCard, borderTop:`4px solid ${c.color}`}}>
                       <p style={styles.cardLabel}>{c.label}</p>
@@ -191,7 +252,6 @@ export default function Reports() {
                   ))}
                 </div>
 
-                {/* Chart container with id for PDF capture */}
                 <div id="pdf-chart-summary" style={styles.chartRow}>
                   <div style={styles.chartBox}>
                     <p style={styles.chartTitle}>Club Status Breakdown</p>
@@ -245,7 +305,7 @@ export default function Reports() {
                     { label:'Active code clubs',  value:parseInt(data.schools.active),       max:parseInt(data.schools.total)-parseInt(data.schools.centres), color:BRAND.green },
                     { label:'Training completed', value:parseInt(data.teachers.trained),     max:parseInt(data.teachers.total),                               color:BRAND.blue },
                     { label:'Safeguarding done',  value:parseInt(data.teachers.safeguarded), max:parseInt(data.teachers.total),                               color:BRAND.orange },
-                    { label:'Pathway progress',   value:parseInt(data.pathways.completed),   max:Math.max(parseInt(data.pathways.total),1),                    color:BRAND.purple },
+                    { label:'Pathway progress',   value:parseInt(data.pathways.completed),   max:Math.max(parseInt(data.pathways.total),1),                   color:BRAND.purple },
                   ].map(item=>(
                     <div key={item.label} style={{marginBottom:'14px'}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
@@ -334,7 +394,7 @@ export default function Reports() {
                     <ResponsiveContainer width="100%" height={260}>
                       <PieChart>
                         <Pie data={[{name:'Active',value:data.filter(m=>m.status==='active').length},{name:'Inactive',value:data.filter(m=>m.status!=='active').length}]} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine>
-                          <Cell fill={BRAND.green} /><Cell fill={BRAND.orange} />
+                          <Cell fill={BRAND.green}/><Cell fill={BRAND.orange}/>
                         </Pie>
                         <Tooltip />
                       </PieChart>
@@ -494,6 +554,140 @@ export default function Reports() {
                 </div>
               </div>
             )}
+
+            {/* ── DEVICE AUDIT ──────────────────────────────────────────── */}
+            {activeReport==='device-audit' && (
+              <div>
+                {/* Summary stat cards */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'16px',marginBottom:'24px'}}>
+                  {[
+                    { label:'TOTAL DEVICES',    value:totalDevices,     sub:'across all clubs',       color:BRAND.blue },
+                    { label:'FUNCTIONING',      value:totalFunctioning, sub:`${funcRate}% working`,   color:BRAND.green },
+                    { label:'FAULTY',           value:totalFaulty,      sub:'need repair/replacement', color:BRAND.red },
+                    { label:'CLUBS AUDITED',    value:new Set(filteredDevices.map(d=>d.school_id||d.school_name)).size, sub:'schools & centres', color:BRAND.orange },
+                  ].map(c=>(
+                    <div key={c.label} style={{background:'#f8f9fa',borderRadius:'10px',padding:'16px',borderTop:`4px solid ${c.color}`}}>
+                      <p style={styles.cardLabel}>{c.label}</p>
+                      <p style={{...styles.cardValue,color:c.color}}>{c.value}</p>
+                      <p style={styles.cardSub}>{c.sub}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Functioning rate bar */}
+                <div style={{...styles.chartBox,marginBottom:'20px'}}>
+                  <p style={styles.chartTitle}>Overall Device Health</p>
+                  <div style={{marginBottom:'12px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}>
+                      <span style={{fontSize:'13px',color:'#555'}}>Functioning devices</span>
+                      <span style={{fontSize:'13px',fontWeight:'700',color:BRAND.green}}>{totalFunctioning} / {totalDevices}</span>
+                    </div>
+                    <ProgressBar value={totalFunctioning} max={totalDevices} color={BRAND.green} />
+                  </div>
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}>
+                      <span style={{fontSize:'13px',color:'#555'}}>Faulty devices</span>
+                      <span style={{fontSize:'13px',fontWeight:'700',color:BRAND.red}}>{totalFaulty} / {totalDevices}</span>
+                    </div>
+                    <ProgressBar value={totalFaulty} max={totalDevices} color={BRAND.red} />
+                  </div>
+                </div>
+
+                {/* Device type chart */}
+                {deviceTypeData.length > 0 && (
+                  <div style={styles.chartRow}>
+                    <div style={{...styles.chartBox,flex:2}}>
+                      <p style={styles.chartTitle}>Devices by Type — Functioning vs Faulty</p>
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={deviceTypeData} margin={{top:5,right:20,left:0,bottom:5}}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis dataKey="name" tick={{fontSize:11}} />
+                          <YAxis tick={{fontSize:11}} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend />
+                          <Bar dataKey="Total"       fill={BRAND.blue}   radius={[4,4,0,0]} />
+                          <Bar dataKey="Functioning" fill={BRAND.green}  radius={[4,4,0,0]} />
+                          <Bar dataKey="Faulty"      fill={BRAND.red}    radius={[4,4,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{...styles.chartBox,flex:1}}>
+                      <p style={styles.chartTitle}>Device Type Distribution</p>
+                      <ResponsiveContainer width="100%" height={240}>
+                        <PieChart>
+                          <Pie data={deviceTypeData.map(d=>({name:d.name,value:d.Total}))}
+                            cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                            label={({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={false}>
+                            {deviceTypeData.map((_,i)=>(
+                              <Cell key={i} fill={[BRAND.blue,BRAND.green,BRAND.orange,BRAND.purple,BRAND.teal,BRAND.red][i%6]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Device audit table */}
+                <div style={{marginTop:'20px',overflowX:'auto'}}>
+                  <table style={styles.table}>
+                    <thead><tr style={styles.thead}>
+                      <th style={styles.th}>SCHOOL / CENTRE</th>
+                      <th style={styles.th}>COUNTY</th>
+                      <th style={styles.th}>TYPE</th>
+                      <th style={styles.th}>DEVICE TYPE</th>
+                      <th style={styles.th}>TOTAL</th>
+                      <th style={styles.th}>FUNCTIONING</th>
+                      <th style={styles.th}>FAULTY</th>
+                      <th style={styles.th}>HEALTH</th>
+                      <th style={styles.th}>COMMENTS</th>
+                    </tr></thead>
+                    <tbody>
+                      {filteredDevices.length === 0 ? (
+                        <tr><td colSpan={9} style={{padding:'40px',textAlign:'center',color:'#888'}}>
+                          No device audit records found.
+                        </td></tr>
+                      ) : filteredDevices.map((row,i)=>{
+                        const health = row.total_devices ? Math.round((parseInt(row.functioning||0)/parseInt(row.total_devices))*100) : 0;
+                        return (
+                          <tr key={i} style={{background:i%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0'}}>
+                            <td style={{...styles.td,fontWeight:'500',color:'#1a2332'}}>{row.school_name||'—'}</td>
+                            <td style={styles.td}>{row.county||'—'}</td>
+                            <td style={styles.td}>
+                              <span style={{...styles.badge,background:'#f0f0f0',color:'#555'}}>
+                                {row.school_type==='community_centre'?'🏢 Centre':'🏫 School'}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{...styles.badge,background:'#e8f4fd',color:'#2980b9'}}>{row.device_type||'—'}</span>
+                            </td>
+                            <td style={{...styles.td,fontWeight:'600'}}>{row.total_devices||0}</td>
+                            <td style={styles.td}>
+                              <span style={{...styles.badge,background:'#eafaf1',color:'#1a8a4a'}}>✅ {row.functioning||0}</span>
+                            </td>
+                            <td style={styles.td}>
+                              {parseInt(row.faulty||0) > 0
+                                ? <span style={{...styles.badge,background:'#fdedec',color:BRAND.red}}>⚠️ {row.faulty}</span>
+                                : <span style={{...styles.badge,background:'#eafaf1',color:'#1a8a4a'}}>✅ 0</span>}
+                            </td>
+                            <td style={{...styles.td,minWidth:'120px'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                                <div style={{flex:1,background:'#f0f0f0',borderRadius:'999px',height:'6px'}}>
+                                  <div style={{width:`${health}%`,background:health>=75?BRAND.green:health>=50?BRAND.orange:BRAND.red,height:'6px',borderRadius:'999px'}}/>
+                                </div>
+                                <span style={{fontSize:'11px',fontWeight:'600',color:health>=75?BRAND.green:health>=50?BRAND.orange:BRAND.red}}>{health}%</span>
+                              </div>
+                            </td>
+                            <td style={{...styles.td,maxWidth:'200px',color:'#8a96a3',fontSize:'12px'}}>{row.comments||'—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -502,7 +696,7 @@ export default function Reports() {
 }
 
 const styles = {
-  reportGrid: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'12px', marginBottom:'20px' },
+  reportGrid: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', marginBottom:'20px' },
   reportCard: { borderRadius:'10px', padding:'16px', transition:'all 0.15s' },
   reportLabel: { fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   reportDesc: { fontSize:'11px', color:'#8a96a3', margin:0 },
