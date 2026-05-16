@@ -1,116 +1,253 @@
 // src/routes/visits.js
-// API endpoints for mentor visits
-
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireMentor } = require('../middleware/auth');
 
-// ── GET /api/visits ──────────────────────────────────────────
-// Admin sees all visits, mentor sees only their own
+// GET /api/visits — all observations (admin/coordinator) or mentor's own
 router.get('/', requireAuth, async (req, res) => {
   try {
-    let query;
-    let params;
+    const { role, mentor_id } = req.user;
+    let query, params;
 
-    if (req.user.role === 'admin') {
+    if (role === 'admin' || role === 'programme_coordinator') {
       query = `
-        SELECT mv.*, 
+        SELECT so.*,
+          sc.official_name AS school_name, sc.club_id, sc.county, sc.type AS school_type,
           m.full_name AS mentor_name,
-          sc.official_name AS school_name,
-          sc.county
-        FROM mentor_visits mv
-        LEFT JOIN mentors m ON mv.mentor_id = m.id
-        LEFT JOIN schools_and_centres sc ON mv.school_id = sc.id
-        ORDER BY mv.visit_date DESC
+          p.name AS pathway_name,
+          pr.name AS project_name
+        FROM session_observations so
+        LEFT JOIN schools_and_centres sc ON so.school_id = sc.id
+        LEFT JOIN mentors m ON so.mentor_id = m.id
+        LEFT JOIN pathways p ON so.pathway_id = p.id
+        LEFT JOIN projects pr ON so.project_id = pr.id
+        ORDER BY so.date_of_visit DESC, sc.official_name
       `;
       params = [];
     } else {
       query = `
-        SELECT mv.*,
+        SELECT so.*,
+          sc.official_name AS school_name, sc.club_id, sc.county, sc.type AS school_type,
           m.full_name AS mentor_name,
-          sc.official_name AS school_name,
-          sc.county
-        FROM mentor_visits mv
-        LEFT JOIN mentors m ON mv.mentor_id = m.id
-        LEFT JOIN schools_and_centres sc ON mv.school_id = sc.id
-        WHERE mv.mentor_id = $1
-        ORDER BY mv.visit_date DESC
+          p.name AS pathway_name,
+          pr.name AS project_name
+        FROM session_observations so
+        LEFT JOIN schools_and_centres sc ON so.school_id = sc.id
+        LEFT JOIN mentors m ON so.mentor_id = m.id
+        LEFT JOIN pathways p ON so.pathway_id = p.id
+        LEFT JOIN projects pr ON so.project_id = pr.id
+        WHERE so.mentor_id = $1
+        ORDER BY so.date_of_visit DESC, sc.official_name
       `;
-      params = [req.user.mentor_id];
+      params = [mentor_id];
     }
 
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error('Get visits error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch visits' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ── POST /api/visits ─────────────────────────────────────────
-// Mentor submits a new visit
-router.post('/', requireAuth, async (req, res) => {
-  const {
-    school_id, visit_date, duration_hrs,
-    observation_score, gps_lat, gps_lng,
-    support_needed, notes
-  } = req.body;
-
-  if (!school_id || !visit_date) {
-    return res.status(400).json({ error: 'School and visit date are required' });
-  }
-
+// GET /api/visits/school/:schoolId — visit history for one school
+router.get('/school/:schoolId', requireAuth, async (req, res) => {
   try {
-    // Auto-generate visit_id (MV001, MV002 etc)
-    const countResult = await pool.query('SELECT COUNT(*) FROM mentor_visits');
-    const count = parseInt(countResult.rows[0].count) + 1;
-    const visit_id = `MV${String(count).padStart(3, '0')}`;
-
     const result = await pool.query(`
-      INSERT INTO mentor_visits
-        (visit_id, mentor_id, school_id, visit_date, duration_hrs,
-         observation_score, gps_lat, gps_lng, support_needed, notes, status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
-      RETURNING *
+      SELECT so.*,
+        m.full_name AS mentor_name,
+        p.name AS pathway_name,
+        pr.name AS project_name
+      FROM session_observations so
+      LEFT JOIN mentors m ON so.mentor_id = m.id
+      LEFT JOIN pathways p ON so.pathway_id = p.id
+      LEFT JOIN projects pr ON so.project_id = pr.id
+      WHERE so.school_id = $1
+      ORDER BY so.visit_number ASC
+    `, [req.params.schoolId]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/visits/my-schools — mentor's assigned schools
+router.get('/my-schools', requireAuth, async (req, res) => {
+  try {
+    const { mentor_id, role } = req.user;
+    let result;
+    if (role === 'admin' || role === 'programme_coordinator') {
+      result = await pool.query(`
+        SELECT id, official_name, club_id, county, type, status, learner_count
+        FROM schools_and_centres ORDER BY official_name
+      `);
+    } else {
+      result = await pool.query(`
+        SELECT id, official_name, club_id, county, type, status, learner_count
+        FROM schools_and_centres WHERE mentor_id = $1 ORDER BY official_name
+      `, [mentor_id]);
+    }
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/visits — create new session observation
+router.post('/', requireAuth, async (req, res) => {
+  const { mentor_id: tokenMentorId, role, id: userId } = req.user;
+  try {
+    const {
+      school_id, date_of_visit, is_first_visit, engagement_type,
+      latitude, longitude, gps_raw,
+      club_running, not_running_reason, activation_actions,
+      club_day, time_band, device_count,
+      total_learners, male_learners, female_learners, engagement_rating,
+      pathway_id, scratch_level, creating_projects, project_id, project_notes,
+      observations, phone_call_notes, challenges, club_leader_confidence,
+      actions_agreed, recommended_star_club, star_club_reason,
+      flag_school, flag_reason, next_visit_date, other_details,
+    } = req.body;
+
+    // Use mentor_id from token if not admin
+    const mentorId = (role === 'admin' || role === 'programme_coordinator')
+      ? req.body.mentor_id || tokenMentorId
+      : tokenMentorId;
+
+    // Auto-count visit number for this school
+    const visitCount = await pool.query(
+      'SELECT COUNT(*) FROM session_observations WHERE school_id = $1',
+      [school_id]
+    );
+    const visit_number = parseInt(visitCount.rows[0].count) + 1;
+
+    // Insert observation
+    const result = await pool.query(`
+      INSERT INTO session_observations (
+        school_id, mentor_id, visit_number, is_first_visit, date_of_visit,
+        engagement_type, latitude, longitude, gps_raw,
+        club_running, not_running_reason, activation_actions,
+        club_day, time_band, device_count,
+        total_learners, male_learners, female_learners, engagement_rating,
+        pathway_id, scratch_level, creating_projects, project_id, project_notes,
+        observations, phone_call_notes, challenges, club_leader_confidence,
+        actions_agreed, recommended_star_club, star_club_reason,
+        flag_school, flag_reason, next_visit_date, other_details
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+        $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,
+        $29,$30,$31,$32,$33,$34,$35
+      ) RETURNING *
     `, [
-      visit_id,
-      req.user.mentor_id,
-      school_id,
-      visit_date,
-      duration_hrs || 2,
-      observation_score || null,
-      gps_lat || null,
-      gps_lng || null,
-      support_needed || false,
-      notes || null,
+      school_id, mentorId, visit_number, is_first_visit||false, date_of_visit,
+      engagement_type, latitude||null, longitude||null, gps_raw||null,
+      club_running??true, not_running_reason||null, activation_actions||null,
+      club_day||null, time_band||null, device_count||0,
+      total_learners||0, male_learners||0, female_learners||0, engagement_rating||null,
+      pathway_id||null, scratch_level||null, creating_projects||false,
+      project_id||null, project_notes||null,
+      observations||null, phone_call_notes||null, challenges||null,
+      club_leader_confidence||null, actions_agreed||null,
+      recommended_star_club||false, star_club_reason||null,
+      flag_school||false, flag_reason||null, next_visit_date||null, other_details||null,
     ]);
 
-    res.status(201).json(result.rows[0]);
+    const obs = result.rows[0];
+
+    // ── Auto-populate: Flags & Alerts ──────────────────────────────────────
+    if (flag_school || club_running === false) {
+      const reason = flag_reason || not_running_reason || 'Club not running';
+      await pool.query(`
+        INSERT INTO flags (school_id, mentor_id, flag_type, reason, status, date_flagged)
+        VALUES ($1, $2, 'visit_observation', $3, 'open', $4)
+        ON CONFLICT DO NOTHING
+      `, [school_id, mentorId, reason, date_of_visit]);
+    }
+
+    // ── Auto-populate: Star Club ───────────────────────────────────────────
+    if (recommended_star_club) {
+      await pool.query(`
+        INSERT INTO star_club_evaluations (school_id, mentor_id, recommended, reason, date_recorded)
+        VALUES ($1, $2, true, $3, $4)
+        ON CONFLICT DO NOTHING
+      `, [school_id, mentorId, star_club_reason||'Recommended via session observation', date_of_visit]);
+    }
+
+    // ── Auto-populate: Pathway Progress ───────────────────────────────────
+    if (pathway_id && scratch_level) {
+      await pool.query(`
+        INSERT INTO pathway_progress (school_id, pathway_id, level_reached, date_recorded)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT DO NOTHING
+      `, [school_id, pathway_id, scratch_level, date_of_visit]);
+    }
+
+    res.status(201).json({ ...obs, visit_number });
   } catch (err) {
     console.error('Create visit error:', err.message);
-    res.status(500).json({ error: 'Failed to create visit' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ── PATCH /api/visits/:id/approve ───────────────────────────
-// Admin approves a visit
-router.patch('/:id/approve', requireAuth, requireAdmin, async (req, res) => {
+// PUT /api/visits/:id — update observation
+router.put('/:id', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query(
-      `UPDATE mentor_visits SET status = 'approved' 
-       WHERE id = $1 RETURNING *`,
-      [req.params.id]
-    );
+    const {
+      date_of_visit, engagement_type, latitude, longitude, gps_raw,
+      club_running, not_running_reason, activation_actions,
+      club_day, time_band, device_count,
+      total_learners, male_learners, female_learners, engagement_rating,
+      pathway_id, scratch_level, creating_projects, project_id, project_notes,
+      observations, phone_call_notes, challenges, club_leader_confidence,
+      actions_agreed, recommended_star_club, star_club_reason,
+      flag_school, flag_reason, next_visit_date, other_details,
+    } = req.body;
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Visit not found' });
-    }
+    const result = await pool.query(`
+      UPDATE session_observations SET
+        date_of_visit=$1, engagement_type=$2, latitude=$3, longitude=$4, gps_raw=$5,
+        club_running=$6, not_running_reason=$7, activation_actions=$8,
+        club_day=$9, time_band=$10, device_count=$11,
+        total_learners=$12, male_learners=$13, female_learners=$14, engagement_rating=$15,
+        pathway_id=$16, scratch_level=$17, creating_projects=$18, project_id=$19, project_notes=$20,
+        observations=$21, phone_call_notes=$22, challenges=$23, club_leader_confidence=$24,
+        actions_agreed=$25, recommended_star_club=$26, star_club_reason=$27,
+        flag_school=$28, flag_reason=$29, next_visit_date=$30, other_details=$31
+      WHERE id=$32 RETURNING *
+    `, [
+      date_of_visit, engagement_type, latitude||null, longitude||null, gps_raw||null,
+      club_running??true, not_running_reason||null, activation_actions||null,
+      club_day||null, time_band||null, device_count||0,
+      total_learners||0, male_learners||0, female_learners||0, engagement_rating||null,
+      pathway_id||null, scratch_level||null, creating_projects||false,
+      project_id||null, project_notes||null,
+      observations||null, phone_call_notes||null, challenges||null,
+      club_leader_confidence||null, actions_agreed||null,
+      recommended_star_club||false, star_club_reason||null,
+      flag_school||false, flag_reason||null, next_visit_date||null, other_details||null,
+      req.params.id,
+    ]);
 
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Approve visit error:', err.message);
-    res.status(500).json({ error: 'Failed to approve visit' });
+    console.error('Update visit error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/visits/:id
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM session_observations WHERE id=$1 RETURNING id',
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
+    res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
