@@ -2,9 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
-const { requireAuth, requireMentor } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
-// GET /api/visits — all observations (admin/coordinator) or mentor's own
+// GET /api/visits — all or mentor's own
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { role, mentor_id } = req.user;
@@ -22,7 +22,7 @@ router.get('/', requireAuth, async (req, res) => {
         LEFT JOIN mentors m ON so.mentor_id = m.id
         LEFT JOIN pathways p ON so.pathway_id = p.id
         LEFT JOIN projects pr ON so.project_id = pr.id
-        ORDER BY so.date_of_visit DESC, sc.official_name
+        ORDER BY so.date_of_visit DESC
       `;
       params = [];
     } else {
@@ -38,7 +38,7 @@ router.get('/', requireAuth, async (req, res) => {
         LEFT JOIN pathways p ON so.pathway_id = p.id
         LEFT JOIN projects pr ON so.project_id = pr.id
         WHERE so.mentor_id = $1
-        ORDER BY so.date_of_visit DESC, sc.official_name
+        ORDER BY so.date_of_visit DESC
       `;
       params = [mentor_id];
     }
@@ -78,15 +78,16 @@ router.get('/my-schools', requireAuth, async (req, res) => {
     const { mentor_id, role } = req.user;
     let result;
     if (role === 'admin' || role === 'programme_coordinator') {
-      result = await pool.query(`
-        SELECT id, official_name, club_id, county, type, status, learner_count
-        FROM schools_and_centres ORDER BY official_name
-      `);
+      result = await pool.query(
+        `SELECT id, official_name, club_id, county, type, status, learner_count
+         FROM schools_and_centres ORDER BY county, official_name`
+      );
     } else {
-      result = await pool.query(`
-        SELECT id, official_name, club_id, county, type, status, learner_count
-        FROM schools_and_centres WHERE mentor_id = $1 ORDER BY official_name
-      `, [mentor_id]);
+      result = await pool.query(
+        `SELECT id, official_name, club_id, county, type, status, learner_count
+         FROM schools_and_centres WHERE mentor_id = $1 ORDER BY official_name`,
+        [mentor_id]
+      );
     }
     res.json(result.rows);
   } catch (err) {
@@ -94,9 +95,25 @@ router.get('/my-schools', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/visits — create new session observation
+// GET /api/visits/pathways-with-projects — all pathways with their levels and projects
+router.get('/pathways-with-projects', requireAuth, async (req, res) => {
+  try {
+    const pathways = await pool.query(`SELECT * FROM pathways ORDER BY name`);
+    const projects = await pool.query(`SELECT * FROM projects ORDER BY name`);
+
+    const result = pathways.rows.map(p => ({
+      ...p,
+      projects: projects.rows.filter(pr => pr.pathway_id === p.id),
+    }));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/visits — create new observation
 router.post('/', requireAuth, async (req, res) => {
-  const { mentor_id: tokenMentorId, role, id: userId } = req.user;
+  const { mentor_id: tokenMentorId, role } = req.user;
   try {
     const {
       school_id, date_of_visit, is_first_visit, engagement_type,
@@ -110,19 +127,17 @@ router.post('/', requireAuth, async (req, res) => {
       flag_school, flag_reason, next_visit_date, other_details,
     } = req.body;
 
-    // Use mentor_id from token if not admin
     const mentorId = (role === 'admin' || role === 'programme_coordinator')
       ? req.body.mentor_id || tokenMentorId
       : tokenMentorId;
 
-    // Auto-count visit number for this school
+    // Auto-count visit number
     const visitCount = await pool.query(
       'SELECT COUNT(*) FROM session_observations WHERE school_id = $1',
       [school_id]
     );
     const visit_number = parseInt(visitCount.rows[0].count) + 1;
 
-    // Insert observation
     const result = await pool.query(`
       INSERT INTO session_observations (
         school_id, mentor_id, visit_number, is_first_visit, date_of_visit,
@@ -155,42 +170,49 @@ router.post('/', requireAuth, async (req, res) => {
 
     const obs = result.rows[0];
 
-    // ── Auto-populate: Flags & Alerts ──────────────────────────────────────
+    // ── Auto-populate: Flags ────────────────────────────────────────────────
     if (flag_school || club_running === false) {
-      const reason = flag_reason || not_running_reason || 'Club not running';
-      await pool.query(`
-        INSERT INTO flags (school_id, mentor_id, flag_type, reason, status, date_flagged)
-        VALUES ($1, $2, 'visit_observation', $3, 'open', $4)
-        ON CONFLICT DO NOTHING
-      `, [school_id, mentorId, reason, date_of_visit]);
+      try {
+        await pool.query(`
+          INSERT INTO flags (school_id, mentor_id, flag_type, reason, status, flagged_at)
+          VALUES ($1,$2,'visit_observation',$3,'open',$4)
+        `, [school_id, mentorId,
+            flag_reason || not_running_reason || 'Club not running during visit',
+            date_of_visit]);
+      } catch(e) { console.log('Flag insert note:', e.message); }
     }
 
     // ── Auto-populate: Star Club ───────────────────────────────────────────
     if (recommended_star_club) {
-      await pool.query(`
-        INSERT INTO star_club_evaluations (school_id, mentor_id, recommended, reason, date_recorded)
-        VALUES ($1, $2, true, $3, $4)
-        ON CONFLICT DO NOTHING
-      `, [school_id, mentorId, star_club_reason||'Recommended via session observation', date_of_visit]);
+      try {
+        await pool.query(`
+          INSERT INTO star_club_evaluations (school_id, mentor_id, recommended, reason, date_recorded)
+          VALUES ($1,$2,true,$3,$4)
+        `, [school_id, mentorId,
+            star_club_reason || 'Recommended via session observation',
+            date_of_visit]);
+      } catch(e) { console.log('Star club insert note:', e.message); }
     }
 
     // ── Auto-populate: Pathway Progress ───────────────────────────────────
     if (pathway_id && scratch_level) {
-      await pool.query(`
-        INSERT INTO pathway_progress (school_id, pathway_id, level_reached, date_recorded)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT DO NOTHING
-      `, [school_id, pathway_id, scratch_level, date_of_visit]);
+      try {
+        await pool.query(`
+          INSERT INTO pathway_progress (school_id, pathway_id, level_reached, date_recorded)
+          VALUES ($1,$2,$3,$4)
+          ON CONFLICT DO NOTHING
+        `, [school_id, pathway_id, scratch_level, date_of_visit]);
+      } catch(e) { console.log('Pathway progress note:', e.message); }
     }
 
-    res.status(201).json({ ...obs, visit_number });
+    res.status(201).json(obs);
   } catch (err) {
     console.error('Create visit error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT /api/visits/:id — update observation
+// PUT /api/visits/:id
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const {
@@ -245,7 +267,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Visit not found' });
-    res.json({ message: 'Deleted successfully' });
+    res.json({ message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
