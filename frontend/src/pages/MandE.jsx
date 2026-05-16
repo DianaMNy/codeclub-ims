@@ -13,10 +13,96 @@ api.interceptors.request.use(config => {
 const RATINGS    = ['Very Active','Active','Moderate','Low'];
 const CONFIDENCE = ['Very Confident','Confident','Developing','Needs Support'];
 const DAYS       = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','Multiple days'];
-const LEVELS     = ['Level 1','Level 2','Level 3','Optional Module 1','Optional Module 2','Optional Module 3'];
+const LEVEL_LABELS = {
+  l1: 'Level 1',
+  l2: 'Level 2',
+  l3: 'Level 3',
+  optional_1: 'Optional Module 1',
+  optional_2: 'Optional Module 2',
+  optional_3: 'Optional Module 3',
+};
+const CLUB_LEADER_ROLES = ['club_leader','centre_club_leader','code_club_leader','centre_manager','additional','teacher'];
+
+const sameId = (a, b) => String(a ?? '') === String(b ?? '');
+
+const parseJsonValue = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); }
+  catch { return fallback; }
+};
+
+const normalisePathways = (data) => {
+  const rows = Array.isArray(data)
+    ? data
+    : Object.entries(data || {}).map(([key, value]) => ({ id: key, key, ...value }));
+
+  return rows.map(row => ({
+    ...row,
+    id: row.id ?? row.key,
+    key: row.key ?? String(row.id ?? ''),
+    label: row.label || row.name || row.key || 'Pathway',
+    name: row.name || row.label || row.key || 'Pathway',
+  }));
+};
+
+const getPathwayLevels = (pathway) => {
+  if (!pathway) return [];
+  const levelsArr = parseJsonValue(pathway.levelsArr, []);
+  if (Array.isArray(levelsArr) && levelsArr.length) {
+    return levelsArr.map(level => ({
+      key: level.key || level.label,
+      label: level.label || LEVEL_LABELS[level.key] || level.key,
+      name: level.name || level.value || '',
+    }));
+  }
+
+  const levels = parseJsonValue(pathway.levels, {});
+  return Object.entries(levels || {}).map(([key, name]) => ({
+    key,
+    label: LEVEL_LABELS[key] || key,
+    name,
+  }));
+};
+
+const getPathwayProjects = (pathway) => {
+  if (!pathway) return [];
+  const projectsArr = parseJsonValue(pathway.projectsArr, []);
+  const projects = Array.isArray(projectsArr) && projectsArr.length
+    ? projectsArr
+    : parseJsonValue(pathway.projects, []);
+
+  return (Array.isArray(projects) ? projects : []).map((project, index) => {
+    if (typeof project === 'string') return { id: project, name: project };
+    return {
+      id: project.id || project.key || project.name || String(index),
+      name: project.name || project.label || project.title || String(project),
+    };
+  });
+};
+
+const fetchPathwayOptions = async () => {
+  const sources = [
+    () => api.get('/visits/pathways-with-projects'),
+    () => api.get('/pathways/syllabus'),
+    () => api.get('/pathways/structure'),
+  ];
+
+  for (const source of sources) {
+    try {
+      const result = await source();
+      const pathways = normalisePathways(result.data);
+      if (pathways.length) return pathways;
+    } catch (err) {
+      console.warn('Pathway lookup failed:', err.response?.data?.error || err.message);
+    }
+  }
+
+  return [];
+};
 
 const INIT = {
-  school_id:'', date_of_visit:new Date().toISOString().split('T')[0],
+  school_id:'', teacher_id:'', date_of_visit:new Date().toISOString().split('T')[0],
   engagement_type:'Physical Visit', latitude:'', longitude:'',
   club_running:'yes', not_running_reason:'', activation_actions:'',
   club_day:'', time_band:'', device_count:'', total_learners:'',
@@ -50,16 +136,23 @@ export default function MandE() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [s, v, p, t] = await Promise.all([
+      const [s, v, t, p] = await Promise.allSettled([
         api.get('/schools'),
         api.get('/visits'),
-        api.get('/visits/pathways-with-projects'),
         api.get('/teachers'),
+        fetchPathwayOptions(),
       ]);
-      setSchools(s.data);
-      setVisits(v.data);
-      setPathways(p.data);
-      setTeachers(t.data);
+      if (s.status === 'fulfilled') setSchools(Array.isArray(s.value.data) ? s.value.data : []);
+      else console.error('Failed to load schools:', s.reason);
+
+      if (v.status === 'fulfilled') setVisits(Array.isArray(v.value.data) ? v.value.data : []);
+      else console.error('Failed to load visits:', v.reason);
+
+      if (t.status === 'fulfilled') setTeachers(Array.isArray(t.value.data) ? t.value.data : []);
+      else console.error('Failed to load teachers:', t.reason);
+
+      if (p.status === 'fulfilled') setPathways(p.value);
+      else console.error('Failed to load pathways:', p.reason);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -67,14 +160,11 @@ export default function MandE() {
   // Single update function — key to preventing re-render issues
   const upd = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
-  const selPathway = pathways.find(p => p.id === form.pathway_id);
-  const projects   = selPathway?.projects
-    ? (typeof selPathway.projects === 'string'
-        ? JSON.parse(selPathway.projects)
-        : selPathway.projects)
-    : [];
+  const selPathway = pathways.find(p => sameId(p.id, form.pathway_id) || sameId(p.key, form.pathway_id));
+  const selectedPathwayLevels = getPathwayLevels(selPathway);
+  const selectedPathwayProjects = getPathwayProjects(selPathway);
 
-  const visitCountForSchool = visits.filter(v => v.school_id === form.school_id).length;
+  const visitCountForSchool = visits.filter(v => sameId(v.school_id, form.school_id)).length;
 
   const openAdd = () => {
     setForm({ ...INIT, date_of_visit: new Date().toISOString().split('T')[0] });
@@ -84,7 +174,7 @@ export default function MandE() {
 
   const openEdit = (v) => {
     setForm({
-      school_id: v.school_id||'', teacher_id: v.teacher_id||'',
+      school_id: v.school_id ? String(v.school_id) : '', teacher_id: v.teacher_id ? String(v.teacher_id) : '',
       date_of_visit: v.date_of_visit?.split('T')[0]||'',
       engagement_type: v.engagement_type||'Physical Visit',
       latitude: v.latitude||'', longitude: v.longitude||'',
@@ -95,7 +185,7 @@ export default function MandE() {
       device_count: v.device_count||'', total_learners: v.total_learners||'',
       male_learners: v.male_learners||'', female_learners: v.female_learners||'',
       engagement_rating: v.engagement_rating||'',
-      pathway_id: v.pathway_id||'', scratch_level: v.scratch_level||'',
+      pathway_id: v.pathway_id ? String(v.pathway_id) : (v.pathway || ''), scratch_level: v.scratch_level||'',
       creating_projects: v.creating_projects ? 'yes' : 'no',
       project_name: v.project_id||'', project_notes: v.project_notes||'',
       observations: v.observations||'', phone_call_notes: v.phone_call_notes||'',
@@ -162,7 +252,7 @@ export default function MandE() {
   };
 
   const filtered = visits.filter(v => {
-    if (filterSchool && v.school_id !== filterSchool) return false;
+    if (filterSchool && !sameId(v.school_id, filterSchool)) return false;
     if (search && !v.school_name?.toLowerCase().includes(search.toLowerCase()) &&
         !v.mentor_name?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -241,13 +331,12 @@ export default function MandE() {
           <label style={lbl}>School / Community Centre *</label>
           <select style={inp} value={form.school_id} onChange={e => {
             const schoolId = e.target.value;
-            const school = schools.find(s => s.id === schoolId);
             // Auto-populate teacher from school's club leader
-            const clubLeader = teachers.find(t => t.school_id === schoolId && t.role === 'club_leader');
+            const clubLeader = teachers.find(t => sameId(t.school_id, schoolId) && CLUB_LEADER_ROLES.includes(t.role));
             setForm(f => ({
               ...f,
               school_id: schoolId,
-              teacher_id: clubLeader?.id || f.teacher_id,
+              teacher_id: clubLeader?.id ? String(clubLeader.id) : '',
             }));
           }}>
             <option value="">— Select school or centre —</option>
@@ -258,7 +347,7 @@ export default function MandE() {
             ))}
           </select>
           {form.school_id && (() => {
-            const school = schools.find(s => s.id === form.school_id);
+            const school = schools.find(s => sameId(s.id, form.school_id));
             return (
               <div style={{marginTop:'6px', fontSize:'13px', color:'#1eb457', fontWeight:'600'}}>
                 📍 Visit #{visitCountForSchool + 1}
@@ -273,8 +362,8 @@ export default function MandE() {
           <select style={inp} value={form.teacher_id} onChange={upd('teacher_id')}>
             <option value="">— Select club leader —</option>
             {teachers
-              .filter(t => ['club_leader','centre_club_leader','additional'].includes(t.role))
-              .filter(t => !form.school_id || t.school_id === form.school_id)
+              .filter(t => CLUB_LEADER_ROLES.includes(t.role))
+              .filter(t => !form.school_id || sameId(t.school_id, form.school_id))
               .map(t => (
                 <option key={t.id} value={t.id}>
                   {t.full_name} ({t.role === 'club_leader' ? 'Club Leader' : t.role === 'centre_club_leader' ? 'Centre Club Leader' : 'Additional'})
@@ -390,20 +479,22 @@ export default function MandE() {
           <label style={lbl}>Pathway being followed</label>
           <select style={inp} value={form.pathway_id} onChange={e=>setForm(f=>({...f,pathway_id:e.target.value,scratch_level:'',project_name:''}))}>
             <option value="">— Select pathway —</option>
-            {pathways.map(p=><option key={p.id} value={p.id}>{p.icon} {p.label||p.name}</option>)}
+            {pathways.map(p=>(
+              <option key={p.id || p.key} value={p.id || p.key}>
+                {p.icon} {p.label || p.name}
+              </option>
+            ))}
           </select>
         </div>
         <div style={row}>
           <label style={lbl}>What Scratch level have learners reached?</label>
           <select style={inp} value={form.scratch_level} onChange={upd('scratch_level')} disabled={!form.pathway_id}>
             <option value="">— {form.pathway_id?'Select level':'Select pathway first'} —</option>
-            {selPathway && (() => {
-              const lvls = typeof selPathway.levels === 'string' ? JSON.parse(selPathway.levels) : (selPathway.levels || {});
-              const labelMap = { l1:'Level 1', l2:'Level 2', l3:'Level 3', optional_1:'Optional Module 1', optional_2:'Optional Module 2', optional_3:'Optional Module 3' };
-              return Object.entries(lvls).map(([k, v]) => (
-                <option key={k} value={labelMap[k]||k}>{labelMap[k]||k} — {v}</option>
-              ));
-            })()}
+            {selectedPathwayLevels.map(level => (
+              <option key={level.key} value={level.label}>
+                {level.label} — {level.name}
+              </option>
+            ))}
           </select>
         </div>
         <div style={row}>
@@ -422,12 +513,9 @@ export default function MandE() {
             <label style={lbl}>Which project?</label>
             <select style={inp} value={form.project_name} onChange={upd('project_name')}>
               <option value="">— Select project —</option>
-              {(() => {
-                const projs = selPathway?.projects
-                  ? (typeof selPathway.projects === 'string' ? JSON.parse(selPathway.projects) : selPathway.projects)
-                  : [];
-                return projs.map((p,i) => <option key={i} value={p}>{p}</option>);
-              })()}
+              {selectedPathwayProjects.map(project => (
+                <option key={project.id} value={project.name}>{project.name}</option>
+              ))}
               <option value="Other">Other / Not listed</option>
             </select>
           </div>
@@ -512,10 +600,11 @@ export default function MandE() {
         </div>
 
         {/* Auto-populate notice */}
-        {(form.recommended_star_club==='yes'||form.flag_school==='yes'||form.club_running==='no'||form.pathway_id)&&(
+        {(form.recommended_star_club==='yes'||form.flag_school==='yes'||form.club_running==='no'||(form.school_id&&form.club_running==='yes')||form.pathway_id)&&(
           <div style={{background:'#f0f7ff',borderRadius:'10px',padding:'14px 16px',margin:'20px 0',border:'1px solid #d0e8ff'}}>
             <p style={{margin:'0 0 8px',fontWeight:'700',fontSize:'14px',color:'#2980b9'}}>⚡ On submit, this will auto-populate:</p>
             <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              {form.school_id&&form.club_running==='yes'&&<span style={{padding:'4px 12px',borderRadius:'999px',fontSize:'13px',fontWeight:'600',background:'#eafaf1',color:'#1a8a4a'}}>🏫 Schools & Centres</span>}
               {form.recommended_star_club==='yes'&&<span style={{padding:'4px 12px',borderRadius:'999px',fontSize:'13px',fontWeight:'600',background:'#fef9e7',color:'#a0720a'}}>⭐ Star Club</span>}
               {(form.flag_school==='yes'||form.club_running==='no')&&<span style={{padding:'4px 12px',borderRadius:'999px',fontSize:'13px',fontWeight:'600',background:'#fdedec',color:'#e74c3c'}}>🚩 Flags & Alerts</span>}
               {form.pathway_id&&<span style={{padding:'4px 12px',borderRadius:'999px',fontSize:'13px',fontWeight:'600',background:'#e8f4fd',color:'#2980b9'}}>🗺️ Pathway Progress</span>}
