@@ -18,7 +18,14 @@ router.get('/', requireAuth, async (req, res) => {
       LEFT JOIN mentors m ON se.mentor_id = m.id
       ORDER BY se.overall_score DESC, se.created_at DESC
     `);
-    res.json(result.rows);
+    const rows = result.rows.map(row => ({
+      ...row,
+      recognition_level: row.recognition_level || (row.recommended || row.reason ? 'nominated' : 'none'),
+      evaluator_comments: row.evaluator_comments || row.reason || null,
+      evaluation_date: row.evaluation_date || row.date_recorded || null,
+      evaluation_name: row.evaluation_name || (row.recommended ? 'M&E Star Club nomination' : null),
+    }));
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

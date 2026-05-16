@@ -67,6 +67,9 @@ app.use('/api/mande', mandeRoutes);
 const starclubRoutes = require('./routes/starclub');
 app.use('/api/starclub', starclubRoutes);
 
+const deviceAuditRoutes = require('./routes/deviceAudits');
+app.use('/api/device-audits', deviceAuditRoutes);
+
 const flagAlertRoutes = require('./routes/flagalerts');
 app.use('/api/flagalerts', flagAlertRoutes);
 

@@ -71,6 +71,36 @@ const syncPathwayProgress = async ({ school_id, teacher_id, pathway, pathway_id,
   );
 };
 
+const syncStarClubNomination = async ({ school_id, mentorId, star_club_reason, date_of_visit }) => {
+  if (!school_id) return;
+  const comments = star_club_reason || 'Recommended via session observation';
+  try {
+    await pool.query(
+      `INSERT INTO star_club_evaluations
+        (school_id, mentor_id, evaluation_name, evaluation_date, criteria_met,
+         overall_score, recognition_level, evaluator_comments, follow_up_needed)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)`,
+      [
+        school_id,
+        mentorId || null,
+        'M&E Star Club nomination',
+        date_of_visit || null,
+        0,
+        0,
+        'nominated',
+        comments,
+      ]
+    );
+  } catch (err) {
+    await pool.query(
+      `INSERT INTO star_club_evaluations
+        (school_id, mentor_id, recommended, reason, date_recorded)
+       VALUES ($1,$2,true,$3,$4)`,
+      [school_id, mentorId || null, comments, date_of_visit || null]
+    );
+  }
+};
+
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { role, mentor_id } = req.user;
@@ -148,7 +178,9 @@ router.post('/', requireAuth, async (req, res) => {
       try { await pool.query(`INSERT INTO flags (school_id, mentor_id, flag_type, reason, status, flagged_at) VALUES ($1,$2,'visit_observation',$3,'open',$4)`, [school_id, mentorId, flag_reason||not_running_reason||'Club not running', date_of_visit]); } catch(e) {}
     }
     if (recommended_star_club) {
-      try { await pool.query(`INSERT INTO star_club_evaluations (school_id, mentor_id, recommended, reason, date_recorded) VALUES ($1,$2,true,$3,$4)`, [school_id, mentorId, star_club_reason||'Recommended via session observation', date_of_visit]); } catch(e) {}
+      try {
+        await syncStarClubNomination({ school_id, mentorId, star_club_reason, date_of_visit });
+      } catch(e) {}
     }
     if (pathway_id && scratch_level) {
       try {

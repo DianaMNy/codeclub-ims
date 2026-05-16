@@ -114,33 +114,53 @@ const INIT = {
   flag_school:'no', flag_reason:'', next_visit_date:'', other_details:'',
 };
 
+const AUDIT_INIT = {
+  school_id: '',
+  audit_date: new Date().toISOString().split('T')[0],
+  device_type: '',
+  total_devices: '',
+  functioning_devices: '',
+  faulty_devices: '',
+  comments: '',
+};
+
 export default function MandE() {
   const [tab, setTab]             = useState('observations');
   const [schools, setSchools]     = useState([]);
   const [visits, setVisits]       = useState([]);
   const [pathways, setPathways]   = useState([]);
   const [teachers, setTeachers]   = useState([]);
+  const [deviceAudits, setDeviceAudits] = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [auditLoading, setAuditLoading] = useState(true);
   const [view, setView]           = useState('list'); // 'list' | 'form' | 'history'
   const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState({ ...INIT });
   const [saving, setSaving]       = useState(false);
+  const [auditSaving, setAuditSaving] = useState(false);
+  const [showAuditForm, setShowAuditForm] = useState(false);
+  const [auditEditId, setAuditEditId] = useState(null);
+  const [auditForm, setAuditForm] = useState({ ...AUDIT_INIT });
   const [historySchool, setHistorySchool] = useState(null);
   const [historyVisits, setHistoryVisits] = useState([]);
   const [filterSchool, setFilterSchool]   = useState('');
+  const [auditFilterSchool, setAuditFilterSchool] = useState('');
   const [search, setSearch]               = useState('');
+  const [auditSearch, setAuditSearch] = useState('');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
+    setAuditLoading(true);
     try {
-      const [s, v, t, p] = await Promise.allSettled([
+      const [s, v, t, p, a] = await Promise.allSettled([
         api.get('/schools'),
         api.get('/visits'),
         api.get('/teachers'),
         fetchPathwayOptions(),
+        api.get('/device-audits'),
       ]);
       if (s.status === 'fulfilled') setSchools(Array.isArray(s.value.data) ? s.value.data : []);
       else console.error('Failed to load schools:', s.reason);
@@ -153,8 +173,11 @@ export default function MandE() {
 
       if (p.status === 'fulfilled') setPathways(p.value);
       else console.error('Failed to load pathways:', p.reason);
+
+      if (a.status === 'fulfilled') setDeviceAudits(Array.isArray(a.value.data) ? a.value.data : []);
+      else console.error('Failed to load device audits:', a.reason);
     } catch(e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setAuditLoading(false); }
   };
 
   // Single update function — key to preventing re-render issues
@@ -242,6 +265,65 @@ export default function MandE() {
     catch { alert('Failed to delete'); }
   };
 
+  const openAuditAdd = () => {
+    setAuditEditId(null);
+    setAuditForm({ ...AUDIT_INIT, audit_date: new Date().toISOString().split('T')[0] });
+    setShowAuditForm(true);
+  };
+
+  const openAuditEdit = (audit) => {
+    setAuditEditId(audit.id);
+    setAuditForm({
+      school_id: audit.school_id ? String(audit.school_id) : '',
+      audit_date: audit.audit_date ? audit.audit_date.split('T')[0] : '',
+      device_type: audit.device_type || '',
+      total_devices: audit.total_devices ?? '',
+      functioning_devices: audit.functioning_devices ?? '',
+      faulty_devices: audit.faulty_devices ?? '',
+      comments: audit.comments || '',
+    });
+    setShowAuditForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const closeAuditForm = () => {
+    setShowAuditForm(false);
+    setAuditEditId(null);
+    setAuditForm({ ...AUDIT_INIT, audit_date: new Date().toISOString().split('T')[0] });
+  };
+
+  const handleAuditSave = async () => {
+    if (!auditForm.school_id) return alert('Please select a school or centre');
+    if (!auditForm.device_type.trim()) return alert('Device type is required');
+    const total = parseInt(auditForm.total_devices, 10) || 0;
+    const functioning = parseInt(auditForm.functioning_devices, 10) || 0;
+    const faulty = parseInt(auditForm.faulty_devices, 10) || 0;
+    if (functioning + faulty > total) return alert('Functioning plus faulty devices cannot be more than total devices');
+
+    setAuditSaving(true);
+    try {
+      const payload = { ...auditForm, total_devices: total, functioning_devices: functioning, faulty_devices: faulty };
+      if (auditEditId) await api.put(`/device-audits/${auditEditId}`, payload);
+      else await api.post('/device-audits', payload);
+      closeAuditForm();
+      await loadData();
+    } catch (e) {
+      alert(e.response?.data?.error || e.message);
+    } finally {
+      setAuditSaving(false);
+    }
+  };
+
+  const handleAuditDelete = async (id, schoolName) => {
+    if (!confirm(`Delete this device audit for "${schoolName || 'this school'}"?`)) return;
+    try {
+      await api.delete(`/device-audits/${id}`);
+      await loadData();
+    } catch {
+      alert('Failed to delete device audit');
+    }
+  };
+
   const openHistory = async (school) => {
     setHistorySchool(school);
     try {
@@ -258,10 +340,26 @@ export default function MandE() {
     return true;
   });
 
+  const filteredAudits = deviceAudits.filter(a => {
+    if (auditFilterSchool && !sameId(a.school_id, auditFilterSchool)) return false;
+    const query = auditSearch.toLowerCase();
+    if (query &&
+      !a.school_name?.toLowerCase().includes(query) &&
+      !a.device_type?.toLowerCase().includes(query) &&
+      !a.club_id?.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  const selectedAuditSchool = schools.find(s => sameId(s.id, auditForm.school_id));
+
   const TV=visits.length, PV=visits.filter(v=>v.engagement_type==='Physical Visit').length;
   const CR=visits.filter(v=>v.club_running).length;
   const FL=visits.filter(v=>v.flag_school||!v.club_running).length;
   const TL=visits.reduce((s,v)=>s+(parseInt(v.total_learners)||0),0);
+  const DA=deviceAudits.length;
+  const DT=deviceAudits.reduce((s,a)=>s+(parseInt(a.total_devices)||0),0);
+  const DF=deviceAudits.reduce((s,a)=>s+(parseInt(a.functioning_devices)||0),0);
+  const DB=deviceAudits.reduce((s,a)=>s+(parseInt(a.faulty_devices)||0),0);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   const inp = { width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1.5px solid #e2e8f0', fontSize:'15px', color:'#333', outline:'none', boxSizing:'border-box', background:'#fff' };
@@ -446,12 +544,8 @@ export default function MandE() {
         </div>
 
         {/* S4 — Learners */}
-        <div style={sec}>👥 Section 4 — Learners & Devices</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'12px',marginBottom:'16px'}}>
-          <div>
-            <label style={lbl}>Devices available</label>
-            <input style={inp} type="number" value={form.device_count} onChange={upd('device_count')} placeholder="0"/>
-          </div>
+        <div style={sec}>👥 Section 4 — Learners</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px',marginBottom:'16px'}}>
           <div>
             <label style={lbl}>Total learners</label>
             <input style={inp} type="number" value={form.total_learners} onChange={upd('total_learners')} placeholder="0"/>
@@ -464,7 +558,7 @@ export default function MandE() {
             <label style={lbl}>Female learners</label>
             <input style={inp} type="number" value={form.female_learners} onChange={upd('female_learners')} placeholder="0"/>
           </div>
-          <div style={{gridColumn:'span 2'}}>
+          <div>
             <label style={lbl}>Learner engagement rating</label>
             <select style={inp} value={form.engagement_rating} onChange={upd('engagement_rating')}>
               <option value="">— Select rating —</option>
@@ -626,8 +720,8 @@ export default function MandE() {
   return (
     <Layout title="M & E" subtitle="Session Observations · Visit Tracking · RPF 2026">
 
-      <div style={{display:'flex',marginBottom:'20px',borderBottom:'1px solid #e2e8f0'}}>
-        {[{k:'observations',l:'📋 Session Observations'},{k:'training',l:'🎓 Capacity Building'}].map(t=>(
+      <div style={{display:'flex',marginBottom:'20px',borderBottom:'1px solid #e2e8f0',overflowX:'auto'}}>
+        {[{k:'observations',l:'📋 Session Observations'},{k:'device_audit',l:'💻 Device Audit'},{k:'training',l:'🎓 Capacity Building'}].map(t=>(
           <button key={t.k} style={{padding:'10px 20px',background:'none',border:'none',cursor:'pointer',fontSize:'14px',borderBottom:tab===t.k?'2px solid #1eb457':'2px solid transparent',color:tab===t.k?'#1eb457':'#888',fontWeight:tab===t.k?'600':'400'}}
             onClick={()=>setTab(t.k)}>{t.l}</button>
         ))}
@@ -698,6 +792,145 @@ export default function MandE() {
                   </div>
                 </div>
               ))
+          )}
+        </div>
+      </>)}
+
+      {tab==='device_audit'&&(<>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'12px',marginBottom:'20px'}}>
+          {[['AUDITS',DA,'#69A9C9'],['TOTAL DEVICES',DT,'#1eb457'],['FUNCTIONING',DF,'#F7941D'],['FAULTY',DB,'#e74c3c']].map(([l,v,c])=>(
+            <div key={l} style={{background:'#fff',borderRadius:'12px',padding:'16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',borderTop:`4px solid ${c}`}}>
+              <p style={{fontSize:'9px',fontWeight:'700',color:'#8a96a3',letterSpacing:'0.5px',margin:'0 0 6px'}}>{l}</p>
+              <p style={{fontSize:'28px',fontWeight:'700',margin:0,color:c}}>{v}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{background:'#fff',borderRadius:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',padding:'20px',marginBottom:'20px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',marginBottom:'16px',flexWrap:'wrap'}}>
+            <div>
+              <p style={{fontSize:'15px',fontWeight:'600',color:'#1a2332',margin:'0 0 4px'}}>Device audit records</p>
+              <p style={{fontSize:'12px',color:'#8a96a3',margin:0}}>{filteredAudits.length} of {deviceAudits.length} audits</p>
+            </div>
+            <button style={{padding:'10px 20px',borderRadius:'10px',border:'none',background:'#1eb457',color:'#fff',fontSize:'14px',fontWeight:'600',cursor:'pointer'}}
+              onClick={showAuditForm ? closeAuditForm : openAuditAdd}>
+              {showAuditForm ? '✕ Cancel' : '+ Record Device Audit'}
+            </button>
+          </div>
+
+          {showAuditForm && (
+            <div style={{background:'#f8f9fa',borderRadius:'10px',padding:'18px',border:'1px solid #e2e8f0',marginBottom:'18px'}}>
+              <p style={{fontSize:'15px',fontWeight:'700',color:'#1a2332',margin:'0 0 14px'}}>
+                {auditEditId ? 'Edit Device Audit' : 'New Device Audit'}
+              </p>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:'14px'}}>
+                <div>
+                  <label style={lbl}>School / Community Centre *</label>
+                  <select style={inp} value={auditForm.school_id}
+                    onChange={e=>setAuditForm(f=>({...f,school_id:e.target.value}))}>
+                    <option value="">— Select school or centre —</option>
+                    {schools.map(s=>(
+                      <option key={s.id} value={s.id}>{s.official_name} — {s.club_id || 'No club ID'}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Audit date</label>
+                  <input style={inp} type="date" value={auditForm.audit_date} onChange={e=>setAuditForm(f=>({...f,audit_date:e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={lbl}>Paired coding club</label>
+                  <input style={{...inp,background:'#fff',color:'#555'}} value={selectedAuditSchool?.club_id || 'Not assigned'} readOnly/>
+                </div>
+                <div>
+                  <label style={lbl}>Type</label>
+                  <input style={{...inp,background:'#fff',color:'#555'}} value={selectedAuditSchool?.type === 'community_centre' ? 'Community centre' : selectedAuditSchool?.type ? 'School' : '—'} readOnly/>
+                </div>
+                <div>
+                  <label style={lbl}>Device type *</label>
+                  <input style={inp} value={auditForm.device_type} onChange={e=>setAuditForm(f=>({...f,device_type:e.target.value}))} placeholder="Laptop, tablet, desktop..."/>
+                </div>
+                <div>
+                  <label style={lbl}>Total devices</label>
+                  <input style={inp} type="number" min="0" value={auditForm.total_devices} onChange={e=>setAuditForm(f=>({...f,total_devices:e.target.value}))} placeholder="0"/>
+                </div>
+                <div>
+                  <label style={lbl}>Functioning</label>
+                  <input style={inp} type="number" min="0" value={auditForm.functioning_devices} onChange={e=>setAuditForm(f=>({...f,functioning_devices:e.target.value}))} placeholder="0"/>
+                </div>
+                <div>
+                  <label style={lbl}>Faulty</label>
+                  <input style={inp} type="number" min="0" value={auditForm.faulty_devices} onChange={e=>setAuditForm(f=>({...f,faulty_devices:e.target.value}))} placeholder="0"/>
+                </div>
+                <div style={{gridColumn:'1 / -1'}}>
+                  <label style={lbl}>Comments</label>
+                  <textarea style={{...inp,height:'90px',resize:'vertical'}} value={auditForm.comments} onChange={e=>setAuditForm(f=>({...f,comments:e.target.value}))} placeholder="Condition, missing chargers, storage notes..."/>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:'12px',marginTop:'18px',flexWrap:'wrap'}}>
+                <button style={{...bdt,background:'#1eb457',color:'#fff',width:'auto',minWidth:'180px'}} onClick={handleAuditSave} disabled={auditSaving}>
+                  {auditSaving ? 'Saving...' : auditEditId ? 'Update Audit' : 'Save Audit'}
+                </button>
+                <button style={{...bdt,background:'#fff',color:'#555',border:'1.5px solid #e2e8f0',width:'auto',minWidth:'120px'}} onClick={closeAuditForm}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'16px'}}>
+            <input style={{padding:'8px 12px',borderRadius:'8px',border:'1.5px solid #e2e8f0',fontSize:'13px',outline:'none',minWidth:'180px',flex:1}}
+              placeholder="🔍 Search school, club ID, device..." value={auditSearch} onChange={e=>setAuditSearch(e.target.value)}/>
+            <select style={{padding:'8px 10px',borderRadius:'8px',border:'1.5px solid #e2e8f0',fontSize:'13px',background:'#fff'}}
+              value={auditFilterSchool} onChange={e=>setAuditFilterSchool(e.target.value)}>
+              <option value="">All Schools</option>
+              {schools.map(s=><option key={s.id} value={s.id}>{s.official_name}</option>)}
+            </select>
+          </div>
+
+          {auditLoading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
+            filteredAudits.length === 0
+              ? <p style={{color:'#888',textAlign:'center',padding:'36px'}}>No device audits recorded yet.</p>
+              : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'12px'}}>
+                  {filteredAudits.map(a=> {
+                    const type = a.school_type_current || a.school_type;
+                    return (
+                      <div key={a.id} style={{border:'1px solid #eef2f7',borderRadius:'10px',padding:'16px',background:'#fff'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'flex-start',marginBottom:'10px'}}>
+                          <div>
+                            <p style={{margin:'0 0 4px',fontSize:'14px',fontWeight:'700',color:'#1a2332'}}>{a.school_name || '—'}</p>
+                            <p style={{margin:0,fontSize:'12px',color:'#8a96a3'}}>{a.club_id || a.coding_club_id || 'No club ID'} · {type === 'community_centre' ? 'Community centre' : 'School'}</p>
+                          </div>
+                          {bdg('#e8f4fd','#2980b9',a.device_type)}
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px',margin:'12px 0'}}>
+                          <div style={{background:'#f8f9fa',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
+                            <p style={{margin:0,fontSize:'20px',fontWeight:'700',color:'#1a2332'}}>{a.total_devices || 0}</p>
+                            <p style={{margin:0,fontSize:'10px',color:'#8a96a3'}}>Total</p>
+                          </div>
+                          <div style={{background:'#eafaf1',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
+                            <p style={{margin:0,fontSize:'20px',fontWeight:'700',color:'#1a8a4a'}}>{a.functioning_devices || 0}</p>
+                            <p style={{margin:0,fontSize:'10px',color:'#1a8a4a'}}>Working</p>
+                          </div>
+                          <div style={{background:'#fdedec',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
+                            <p style={{margin:0,fontSize:'20px',fontWeight:'700',color:'#e74c3c'}}>{a.faulty_devices || 0}</p>
+                            <p style={{margin:0,fontSize:'10px',color:'#e74c3c'}}>Faulty</p>
+                          </div>
+                        </div>
+                        {a.comments && <p style={{margin:'0 0 12px',fontSize:'13px',color:'#555',lineHeight:1.4}}>{a.comments}</p>}
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                          <span style={{fontSize:'12px',color:'#8a96a3'}}>
+                            {a.audit_date ? new Date(a.audit_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'} · {a.mentor_name || '—'}
+                          </span>
+                          <div style={{display:'flex',gap:'6px'}}>
+                            <button style={{padding:'6px 10px',borderRadius:'8px',border:'1.5px solid #69A9C9',background:'#fff',fontSize:'12px',cursor:'pointer',color:'#69A9C9'}} onClick={()=>openAuditEdit(a)}>Edit</button>
+                            <button style={{padding:'6px 10px',borderRadius:'8px',border:'1.5px solid #e74c3c',background:'#fff',fontSize:'12px',cursor:'pointer',color:'#e74c3c'}} onClick={()=>handleAuditDelete(a.id, a.school_name)}>Delete</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
           )}
         </div>
       </>)}
