@@ -94,6 +94,9 @@ app.use('/api/chat', chatRoutes);
 const codyRoutes = require('./routes/cody');
 app.use('/api/cody', codyRoutes);
 
+const projectsShowcaseRoutes = require('./routes/projects_showcase');
+app.use('/api/projects-showcase', projectsShowcaseRoutes);
+
 // ── Start the server ──────────────────────────────────
 const PORT = process.env.PORT || 5000;
 

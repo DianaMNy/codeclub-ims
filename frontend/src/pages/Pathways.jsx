@@ -44,6 +44,8 @@ const EMPTY_PATHWAY = { key:'', label:'', icon:'📚', color:'#888888',
   l1:'', l2:'', l3:'', optional_1:'', optional_2:'', optional_3:'',
   project_1:'', project_2:'', project_3:'' };
 
+const EMPTY_SHOWCASE = { school_id:'', pathway:'scratch', project_name:'', level_reached:'l1', photo_url:'', notes:'', status:'in_progress', county_snapshot:'', school_name_snapshot:'' };
+
 export default function Pathways() {
   const isMobile = useIsMobile();
   const [progress, setProgress]     = useState([]);
@@ -70,19 +72,39 @@ export default function Pathways() {
   const [pathwayForm, setPathwayForm] = useState(EMPTY_PATHWAY);
   const [savingPathway, setSavingPathway] = useState(false);
 
+  // Projects Showcase
+  const [showcaseProjects, setShowcaseProjects] = useState([]);
+  const [showcaseLoading, setShowcaseLoading] = useState(false);
+  const [showcaseForm, setShowcaseForm] = useState(EMPTY_SHOWCASE);
+  const [showcaseEditing, setShowcaseEditing] = useState(null);
+  const [showShowcaseForm, setShowShowcaseForm] = useState(false);
+  const [showcaseSaving, setShowcaseSaving] = useState(false);
+  const [showcaseSearch, setShowcaseSearch] = useState('');
+  const [showcaseCounty, setShowcaseCounty] = useState('');
+  const [showcasePathwayFilter, setShowcasePathwayFilter] = useState('');
+  const [showcaseStatus, setShowcaseStatus] = useState('all');
+
   const fetchProgress = () => api.get('/pathways').then(r => setProgress(r.data));
   const fetchSyllabus = () => api.get('/pathways/syllabus').then(r => setCustomPathways(r.data)).catch(() => {});
+  const fetchShowcase = () => {
+    setShowcaseLoading(true);
+    api.get('/projects-showcase').then(r => setShowcaseProjects(r.data)).catch(console.error).finally(() => setShowcaseLoading(false));
+  };
 
   useEffect(() => {
-    Promise.all([api.get('/pathways'), api.get('/schools'), api.get('/teachers'), api.get('/pathways/syllabus').catch(() => ({ data: [] }))])
-      .then(([p, s, t, sy]) => {
-        setProgress(p.data);
-        setSchools(s.data);
-        setTeachers(t.data);
-        setCustomPathways(sy.data || []);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get('/pathways'),
+      api.get('/schools'),
+      api.get('/teachers'),
+      api.get('/pathways/syllabus').catch(() => ({ data: [] })),
+      api.get('/projects-showcase').catch(() => ({ data: [] })),
+    ]).then(([p, s, t, sy, sh]) => {
+      setProgress(p.data);
+      setSchools(s.data);
+      setTeachers(t.data);
+      setCustomPathways(sy.data || []);
+      setShowcaseProjects(sh.data || []);
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   // ── Progress CRUD ────────────────────────────────────────────────────────────
@@ -143,6 +165,47 @@ export default function Pathways() {
     catch { alert('Failed to delete pathway'); }
   };
 
+  // ── Projects Showcase CRUD ───────────────────────────────────────────────────
+  const openShowcaseEdit = (proj) => {
+    setShowcaseEditing(proj.id);
+    setShowcaseForm({
+      school_id: proj.school_id || '',
+      pathway: proj.pathway || 'scratch',
+      project_name: proj.project_name || '',
+      level_reached: proj.level_reached || 'l1',
+      photo_url: proj.photo_url || '',
+      notes: proj.notes || '',
+      status: proj.status || 'in_progress',
+      county_snapshot: proj.county_snapshot || '',
+      school_name_snapshot: proj.school_name_snapshot || '',
+    });
+    setShowShowcaseForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleShowcaseSubmit = async () => {
+    if (!showcaseForm.project_name || showcaseForm.project_name === '__other__') return alert('Please select or enter a project name');
+    const school = schools.find(s => s.id === showcaseForm.school_id);
+    const payload = { ...showcaseForm, county_snapshot: showcaseForm.county_snapshot || school?.county || '', school_name_snapshot: showcaseForm.school_name_snapshot || school?.official_name || '' };
+    setShowcaseSaving(true);
+    try {
+      if (showcaseEditing) { await api.put(`/projects-showcase/${showcaseEditing}`, payload); }
+      else { await api.post('/projects-showcase', payload); }
+      const res = await api.get('/projects-showcase');
+      setShowcaseProjects(res.data);
+      setShowShowcaseForm(false); setShowcaseEditing(null); setShowcaseForm(EMPTY_SHOWCASE);
+    } catch { alert('Failed to save project'); }
+    finally { setShowcaseSaving(false); }
+  };
+
+  const handleShowcaseDelete = async (id, name) => {
+    if (!window.confirm(`Delete project "${name}"?`)) return;
+    try {
+      await api.delete(`/projects-showcase/${id}`);
+      setShowcaseProjects(prev => prev.filter(p => p.id !== id));
+    } catch { alert('Failed to delete project'); }
+  };
+
   const handleSavePathway = async () => {
     if (!pathwayForm.key || !pathwayForm.label) return alert('Key and label are required');
     setSavingPathway(true);
@@ -198,13 +261,13 @@ export default function Pathways() {
 
       {/* Tabs */}
       <div style={styles.tabs}>
-        {['overview','detail','record','syllabus'].map(tab => (
+        {['overview','detail','record','syllabus','showcase'].map(tab => (
           <button key={tab} style={{...styles.tab,
             borderBottom: activeTab===tab ? '2px solid #69A9C9' : '2px solid transparent',
             color: activeTab===tab ? '#69A9C9' : '#888',
             fontWeight: activeTab===tab ? '600' : '400'}}
             onClick={() => setActiveTab(tab)}>
-            {tab==='overview' ? '📊 Overview' : tab==='detail' ? '📋 Pathway Detail' : tab==='record' ? '➕ Record Progress' : '📚 Manage Syllabus'}
+            {tab==='overview' ? '📊 Overview' : tab==='detail' ? '📋 Pathway Detail' : tab==='record' ? '➕ Record Progress' : tab==='syllabus' ? '📚 Manage Syllabus' : '🚀 Projects Showcase'}
           </button>
         ))}
       </div>
@@ -571,6 +634,230 @@ export default function Pathways() {
           </div>
         </div>
       )}
+      {/* ── SHOWCASE TAB ────────────────────────────────────────────────────────── */}
+      {activeTab === 'showcase' && (
+        <div>
+          {/* Stat cards */}
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px,1fr))', gap:'12px', marginBottom:'20px'}}>
+            {[
+              { label:'Total Projects', value:showcaseProjects.length, color:'#69A9C9', icon:'🚀' },
+              { label:'Completed', value:showcaseProjects.filter(p=>p.status==='completed').length, color:'#1eb457', icon:'✅' },
+              { label:'In Progress', value:showcaseProjects.filter(p=>p.status==='in_progress').length, color:'#F7941D', icon:'🔄' },
+              { label:'Schools', value:new Set(showcaseProjects.map(p=>p.school_id||p.school_name_snapshot).filter(Boolean)).size, color:'#9b59b6', icon:'🏫' },
+            ].map(stat => (
+              <div key={stat.label} style={{background:'#fff', borderRadius:'10px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', borderTop:`3px solid ${stat.color}`}}>
+                <p style={{margin:'0 0 6px 0', fontSize:'22px'}}>{stat.icon}</p>
+                <p style={{margin:'0 0 2px 0', fontSize:'24px', fontWeight:'700', color:stat.color}}>{stat.value}</p>
+                <p style={{margin:0, fontSize:'11px', color:'#8a96a3', fontWeight:'600'}}>{stat.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={styles.section}>
+            <div style={styles.sectionHead}>
+              <div>
+                <p style={styles.sectionTitle}>🚀 Projects Showcase — Coolest Projects 2026</p>
+                <p style={styles.sectionSub}>{showcaseProjects.length} project{showcaseProjects.length !== 1 ? 's' : ''} submitted</p>
+              </div>
+              <button style={styles.addBtn} onClick={() => { setShowcaseEditing(null); setShowcaseForm(EMPTY_SHOWCASE); setShowShowcaseForm(f => !f); }}>
+                {showShowcaseForm && !showcaseEditing ? '✕ Cancel' : '+ Add Project'}
+              </button>
+            </div>
+
+            {/* Add / Edit form */}
+            {showShowcaseForm && (
+              <div style={{...styles.formBox, marginBottom:'20px'}}>
+                <p style={styles.formTitle}>{showcaseEditing ? '✏️ Edit Project' : '➕ Submit a Project'}</p>
+                <div style={styles.formGrid}>
+                  <div style={styles.formField}>
+                    <label style={styles.label}>School</label>
+                    <select style={styles.formSelect} value={showcaseForm.school_id}
+                      onChange={e => {
+                        const school = schools.find(s => s.id === e.target.value);
+                        setShowcaseForm(f => ({ ...f, school_id:e.target.value, county_snapshot:school?.county||'', school_name_snapshot:school?.official_name||'' }));
+                      }}>
+                      <option value="">Select school...</option>
+                      {schools.filter(s => s.status === 'active').map(s => (
+                        <option key={s.id} value={s.id}>{s.official_name} — {s.county}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.label}>Pathway</label>
+                    <select style={styles.formSelect} value={showcaseForm.pathway}
+                      onChange={e => setShowcaseForm(f => ({ ...f, pathway:e.target.value, project_name:'', level_reached:'l1' }))}>
+                      {Object.keys(PATHWAY_STRUCTURE).map(key => (
+                        <option key={key} value={key}>{PATHWAY_STRUCTURE[key].icon} {PATHWAY_STRUCTURE[key].label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.label}>Project</label>
+                    <select style={styles.formSelect} value={showcaseForm.project_name}
+                      onChange={e => setShowcaseForm(f => ({ ...f, project_name:e.target.value }))}>
+                      <option value="">Select project...</option>
+                      {(PATHWAY_STRUCTURE[showcaseForm.pathway]?.projects || []).map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                      <option value="__other__">Other...</option>
+                    </select>
+                    {showcaseForm.project_name === '__other__' && (
+                      <input style={{...styles.formInput, marginTop:'6px'}} placeholder="Type project name..."
+                        onChange={e => setShowcaseForm(f => ({ ...f, project_name:e.target.value }))} />
+                    )}
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.label}>Level Reached</label>
+                    <select style={styles.formSelect} value={showcaseForm.level_reached}
+                      onChange={e => setShowcaseForm(f => ({ ...f, level_reached:e.target.value }))}>
+                      {LEVEL_ORDER.map((level, idx) => (
+                        <option key={level} value={level}>
+                          {idx < 3 ? `Level ${idx+1}` : `Optional ${idx-2}`} — {PATHWAY_STRUCTURE[showcaseForm.pathway]?.levels?.[level] || level}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.label}>Status</label>
+                    <div style={{display:'flex', gap:'8px'}}>
+                      {['in_progress','completed'].map(s => (
+                        <button key={s} onClick={() => setShowcaseForm(f => ({ ...f, status:s }))}
+                          style={{flex:1, padding:'9px', borderRadius:'8px', border:`1.5px solid ${showcaseForm.status===s ? (s==='completed' ? '#1eb457' : '#F7941D') : '#e2e8f0'}`, background:showcaseForm.status===s ? (s==='completed' ? '#eafaf1' : '#fff5e6') : '#fff', color:showcaseForm.status===s ? (s==='completed' ? '#1a8a4a' : '#a0720a') : '#888', cursor:'pointer', fontSize:'12px', fontWeight:'600'}}>
+                          {s === 'completed' ? '✅ Completed' : '🔄 In Progress'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={styles.formField}>
+                    <label style={styles.label}>Photo</label>
+                    <input type="file" accept="image/*" onChange={e => {
+                      const file = e.target.files[0]; if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => setShowcaseForm(f => ({ ...f, photo_url:reader.result }));
+                      reader.readAsDataURL(file);
+                    }} style={{fontSize:'13px', padding:'8px 0'}} />
+                    {showcaseForm.photo_url && (
+                      <div style={{marginTop:'8px', position:'relative', display:'inline-block'}}>
+                        <img src={showcaseForm.photo_url} alt="preview" style={{width:'100px', height:'75px', objectFit:'cover', borderRadius:'8px', border:'1.5px solid #e2e8f0'}} />
+                        <button onClick={() => setShowcaseForm(f => ({ ...f, photo_url:'' }))} style={{position:'absolute', top:'-6px', right:'-6px', background:'#e74c3c', border:'none', color:'#fff', borderRadius:'50%', width:'18px', height:'18px', fontSize:'10px', cursor:'pointer', lineHeight:'18px', textAlign:'center', padding:0}}>×</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{marginTop:'12px'}}>
+                  <div style={styles.formField}>
+                    <label style={styles.label}>Notes</label>
+                    <textarea style={{...styles.formInput, minHeight:'80px', resize:'vertical', fontFamily:'inherit'}}
+                      placeholder="Any notes about this project..."
+                      value={showcaseForm.notes}
+                      onChange={e => setShowcaseForm(f => ({ ...f, notes:e.target.value }))} />
+                  </div>
+                </div>
+
+                <div style={{marginTop:'16px', display:'flex', gap:'12px'}}>
+                  <button style={styles.saveBtn} onClick={handleShowcaseSubmit} disabled={showcaseSaving}>
+                    {showcaseSaving ? 'Saving...' : showcaseEditing ? '💾 Update' : '✅ Submit Project'}
+                  </button>
+                  <button style={styles.cancelBtn} onClick={() => { setShowShowcaseForm(false); setShowcaseEditing(null); setShowcaseForm(EMPTY_SHOWCASE); }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div style={styles.filterBar}>
+              <input style={{...styles.filterSelect, minWidth:'160px'}} placeholder="Search projects or schools..."
+                value={showcaseSearch} onChange={e => setShowcaseSearch(e.target.value)} />
+              <select style={styles.filterSelect} value={showcaseCounty} onChange={e => setShowcaseCounty(e.target.value)}>
+                <option value="">All Counties</option>
+                {[...new Set(showcaseProjects.map(p => p.county || p.county_snapshot).filter(Boolean))].sort().map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <select style={styles.filterSelect} value={showcasePathwayFilter} onChange={e => setShowcasePathwayFilter(e.target.value)}>
+                <option value="">All Pathways</option>
+                {Object.keys(PATHWAY_STRUCTURE).map(key => (
+                  <option key={key} value={key}>{PATHWAY_STRUCTURE[key].icon} {PATHWAY_STRUCTURE[key].label}</option>
+                ))}
+              </select>
+              <select style={styles.filterSelect} value={showcaseStatus} onChange={e => setShowcaseStatus(e.target.value)}>
+                <option value="all">All Status</option>
+                <option value="completed">✅ Completed</option>
+                <option value="in_progress">🔄 In Progress</option>
+              </select>
+              {(showcaseSearch || showcaseCounty || showcasePathwayFilter || showcaseStatus !== 'all') && (
+                <button style={styles.clearBtn} onClick={() => { setShowcaseSearch(''); setShowcaseCounty(''); setShowcasePathwayFilter(''); setShowcaseStatus('all'); }}>✕ Clear</button>
+              )}
+            </div>
+
+            {/* Gallery */}
+            {showcaseLoading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (() => {
+              const filtered = showcaseProjects.filter(p => {
+                const county = p.county || p.county_snapshot || '';
+                const matchSearch = !showcaseSearch || p.project_name.toLowerCase().includes(showcaseSearch.toLowerCase()) || (p.school_name||'').toLowerCase().includes(showcaseSearch.toLowerCase());
+                const matchCounty = !showcaseCounty || county === showcaseCounty;
+                const matchPathway = !showcasePathwayFilter || p.pathway === showcasePathwayFilter;
+                const matchStatus = showcaseStatus === 'all' || p.status === showcaseStatus;
+                return matchSearch && matchCounty && matchPathway && matchStatus;
+              });
+
+              if (filtered.length === 0) return (
+                <div style={{textAlign:'center', padding:'48px 20px', color:'#888'}}>
+                  {showcaseProjects.length === 0
+                    ? <><p style={{fontSize:'40px', margin:'0 0 8px'}}>🚀</p><p style={{fontSize:'14px'}}>No projects yet. Click &quot;+ Add Project&quot; to submit the first one!</p></>
+                    : <p style={{fontSize:'14px'}}>No projects match your filters.</p>}
+                </div>
+              );
+
+              return (
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:'16px'}}>
+                  {filtered.map(proj => {
+                    const pw = PATHWAY_STRUCTURE[proj.pathway] || {};
+                    const county = proj.county || proj.county_snapshot || '';
+                    const schoolName = proj.school_name || proj.school_name_snapshot || '—';
+                    return (
+                      <div key={proj.id} style={styles.showcaseCard}>
+                        {proj.photo_url
+                          ? <img src={proj.photo_url} alt={proj.project_name} style={{width:'100%', height:'160px', objectFit:'cover', borderRadius:'10px 10px 0 0'}} />
+                          : <div style={{width:'100%', height:'160px', background:(pw.color||'#888')+'15', borderRadius:'10px 10px 0 0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'48px'}}>{pw.icon||'🚀'}</div>
+                        }
+                        <div style={{padding:'14px'}}>
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px', marginBottom:'6px'}}>
+                            <p style={{margin:0, fontWeight:'700', fontSize:'14px', color:'#1a2332', flex:1}}>{proj.project_name}</p>
+                            <span style={{...styles.badge, background:proj.status==='completed'?'#eafaf1':'#fef9e7', color:proj.status==='completed'?'#1a8a4a':'#a0720a', fontSize:'11px', whiteSpace:'nowrap'}}>
+                              {proj.status === 'completed' ? '✅ Done' : '🔄 In Progress'}
+                            </span>
+                          </div>
+                          <p style={{margin:'0 0 8px 0', fontSize:'12px', color:'#555', fontWeight:'500'}}>{schoolName}</p>
+                          <div style={{display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'8px'}}>
+                            {county && <span style={{...styles.badge, background:'#e8f4fd', color:'#2980b9', fontSize:'11px'}}>{county}</span>}
+                            {pw.label && <span style={{...styles.badge, background:(pw.color||'#888')+'20', color:pw.color||'#888', fontSize:'11px'}}>{pw.icon} {pw.label}</span>}
+                          </div>
+                          {proj.level_reached && <p style={{margin:'0 0 4px 0', fontSize:'11px', color:'#888'}}>📈 {pw.levels?.[proj.level_reached] || proj.level_reached}</p>}
+                          {proj.notes && <p style={{margin:'0 0 8px 0', fontSize:'12px', color:'#666', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical'}}>{proj.notes}</p>}
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #f0f0f0'}}>
+                            <p style={{margin:0, fontSize:'11px', color:'#aaa'}}>{proj.mentor_name||'—'} · {proj.submitted_at ? new Date(proj.submitted_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</p>
+                            <div style={{display:'flex', gap:'4px'}}>
+                              <button style={styles.editBtn} onClick={() => openShowcaseEdit(proj)}>✏️</button>
+                              <button style={styles.deleteBtn} onClick={() => handleShowcaseDelete(proj.id, proj.project_name)}>🗑</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }
@@ -614,4 +901,5 @@ const styles = {
   formSelect: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#1eb457', color:'#fff', fontSize:'14px', fontWeight:'600', cursor:'pointer' },
   cancelBtn: { padding:'10px 24px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', color:'#555', fontSize:'14px', cursor:'pointer' },
+  showcaseCard: { background:'#fff', borderRadius:'10px', boxShadow:'0 2px 8px rgba(0,0,0,0.07)', overflow:'hidden', transition:'box-shadow 0.2s' },
 };
