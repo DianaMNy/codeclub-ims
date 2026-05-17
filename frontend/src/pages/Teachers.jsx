@@ -49,6 +49,21 @@ export default function Teachers() {
   const [form, setForm]         = useState(EMPTY_FORM);
   const [saving, setSaving]     = useState(false);
   const [deleteConfirm, setDeleteConfirm]   = useState(null);
+  const [loginModal, setLoginModal]         = useState(null);
+  const [loginEmail, setLoginEmail]         = useState('');
+  const [loginPassword, setLoginPassword]   = useState('');
+  const [loginCreating, setLoginCreating]   = useState(false);
+  const [loginSuccess, setLoginSuccess]     = useState('');
+  const [usersWithLogin, setUsersWithLogin] = useState(new Set());
+
+  const generatePassword = (teacher) => {
+    const first = teacher.full_name?.split(' ')[0] || 'User';
+    const digits = (teacher.phone || '').replace(/\D/g, '');
+    const last4 = digits.length >= 4
+      ? digits.slice(-4)
+      : Math.floor(1000 + Math.random() * 9000).toString();
+    return `${first}${last4}CC`;
+  };
 
   const fetchData = () => {
     setLoading(true);
@@ -58,7 +73,15 @@ export default function Teachers() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    api.get('/users').then(res => {
+      const ids = new Set(
+        (res.data || []).filter(u => u.teacher_id).map(u => u.teacher_id)
+      );
+      setUsersWithLogin(ids);
+    }).catch(() => {});
+  }, []);
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -96,6 +119,33 @@ export default function Teachers() {
       fetchData();
     } catch (err) { alert(err.response?.data?.error || err.message); }
     finally { setSaving(false); }
+  };
+
+  const openLoginModal = (teacher) => {
+    setLoginModal(teacher);
+    setLoginEmail(teacher.email || '');
+    setLoginPassword(generatePassword(teacher));
+    setLoginSuccess('');
+  };
+
+  const handleCreateLogin = async () => {
+    if (!loginEmail) return alert('Email is required');
+    setLoginCreating(true);
+    try {
+      await api.post('/users', {
+        full_name:  loginModal.full_name,
+        email:      loginEmail,
+        password:   loginPassword,
+        role:       'teacher',
+        teacher_id: loginModal.id,
+      });
+      setUsersWithLogin(prev => new Set([...prev, loginModal.id]));
+      setLoginSuccess(`Login created! Share these credentials:\n\nEmail: ${loginEmail}\nPassword: ${loginPassword}`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to create login');
+    } finally {
+      setLoginCreating(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -288,6 +338,10 @@ export default function Teachers() {
                   <td style={styles.td}>
                     <button style={styles.editBtn} onClick={()=>openEdit(t)}>✏️ Edit</button>
                     <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(t)}>🗑️</button>
+                    {usersWithLogin.has(t.id)
+                      ? <span style={styles.hasLoginBadge}>✅ Has Login</span>
+                      : <button style={styles.loginBtn} onClick={()=>openLoginModal(t)}>🔑 Create Login</button>
+                    }
                   </td>
                 </tr>
               ))}
@@ -395,6 +449,61 @@ export default function Teachers() {
         </div>
       )}
 
+      {/* Create Login Modal */}
+      {loginModal && !loginSuccess && (
+        <div style={styles.overlay}>
+          <div style={{...styles.modal, maxWidth:'440px'}}>
+            <h3 style={styles.modalTitle}>🔑 Create Login — {loginModal.full_name}</h3>
+            <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Email *</label>
+                <input style={styles.input} type="email" value={loginEmail}
+                  onChange={e=>setLoginEmail(e.target.value)}
+                  placeholder="teacher@school.ke" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Password — share this with the teacher</label>
+                <div style={{display:'flex', gap:'8px'}}>
+                  <input style={{...styles.input, flex:1, fontFamily:'monospace', letterSpacing:'0.05em'}}
+                    value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} />
+                  <button style={styles.cancelBtn}
+                    onClick={()=>setLoginPassword(generatePassword(loginModal))}>↻</button>
+                </div>
+                <p style={{fontSize:'11px', color:'#8a96a3', margin:'4px 0 0'}}>
+                  Auto-generated from name + last 4 digits of phone. You can edit it.
+                </p>
+              </div>
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={()=>setLoginModal(null)}>Cancel</button>
+              <button style={{...styles.saveBtn, background:'#F7941D'}}
+                onClick={handleCreateLogin} disabled={loginCreating}>
+                {loginCreating ? 'Creating...' : '🔑 Create Login'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Login Created Success */}
+      {loginModal && loginSuccess && (
+        <div style={styles.overlay}>
+          <div style={{...styles.modal, maxWidth:'440px'}}>
+            <h3 style={{color:'#1eb457', margin:'0 0 16px', fontSize:'18px', fontWeight:'700'}}>✅ Login Created!</h3>
+            <div style={{background:'#eafaf1', border:'1.5px solid #a9dfbf', borderRadius:'10px', padding:'16px 20px', marginBottom:'16px'}}>
+              <p style={{margin:'0 0 8px', fontSize:'13px'}}><strong>Email:</strong> {loginEmail}</p>
+              <p style={{margin:0, fontSize:'13px', fontFamily:'monospace', letterSpacing:'0.05em'}}><strong>Password:</strong> {loginPassword}</p>
+            </div>
+            <p style={{fontSize:'13px', color:'#555', margin:'0 0 20px'}}>
+              Share these credentials with the teacher. They can log in at the app URL.
+            </p>
+            <div style={styles.modalActions}>
+              <button style={styles.saveBtn} onClick={()=>setLoginModal(null)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirm */}
       {deleteConfirm && (
         <div style={styles.overlay}>
@@ -443,6 +552,8 @@ const styles = {
   checkBadge: { padding:'3px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'600', whiteSpace:'nowrap' },
   editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9', marginRight:'6px' },
   deleteBtn: { padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
+  loginBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #F7941D', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#F7941D', marginLeft:'6px', whiteSpace:'nowrap' },
+  hasLoginBadge: { display:'inline-block', padding:'3px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'600', background:'#eafaf1', color:'#1a8a4a', marginLeft:'6px', whiteSpace:'nowrap' },
   overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
   modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'650px', maxHeight:'85vh', overflowY:'auto' },
   modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
