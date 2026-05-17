@@ -7,6 +7,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+
 const PROGRAMME_CONTEXT = `
 You are Cody 🤖, the smart AI assistant for EmpServe Kenya's Code Club IMS.
 You are friendly, enthusiastic, and knowledgeable about the RPF 2026 programme.
@@ -103,7 +104,7 @@ router.post('/chat', requireAuth, async (req, res) => {
     }
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 500,
       system: systemPrompt,
       messages: messages.slice(-10), // last 10 messages for context
