@@ -68,7 +68,7 @@ router.get('/pathways-with-projects', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   const { mentor_id: tokenMentorId, role } = req.user;
   try {
-    const { school_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
+    const { school_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, showcase_photo, showcase_status, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
     const mentorId = (role === 'admin' || role === 'programme_coordinator') ? req.body.mentor_id || tokenMentorId : tokenMentorId;
     const visitCount = await pool.query('SELECT COUNT(*) FROM session_observations WHERE school_id = $1', [school_id]);
     const visit_number = parseInt(visitCount.rows[0].count) + 1;
@@ -82,6 +82,30 @@ router.post('/', requireAuth, async (req, res) => {
     }
     if (pathway_id && scratch_level) {
       try { await pool.query(`INSERT INTO pathway_progress (school_id, pathway_id, level_reached, date_recorded) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [school_id, pathway_id, scratch_level, date_of_visit]); } catch(e) {}
+    }
+    if (creating_projects && project_id) {
+      try {
+        await pool.query(`
+          INSERT INTO project_submissions
+            (school_id, pathway_id, project_name, scratch_level,
+             photo_url, notes, status, mentor_id,
+             school_name_snapshot, county_snapshot, pathway_name_snapshot)
+          SELECT
+            $1, $2, $3, $4, $5, $6, $7, $8,
+            sc.official_name, sc.county, p.label
+          FROM schools_and_centres sc, pathways p
+          WHERE sc.id = $1 AND p.id = $2
+        `, [
+          school_id,
+          pathway_id,
+          project_id,
+          scratch_level || null,
+          showcase_photo || null,
+          project_notes || null,
+          showcase_status || 'in_progress',
+          mentorId,
+        ]);
+      } catch(e) { console.log('Showcase insert note:', e.message); }
     }
     res.status(201).json(result.rows[0]);
   } catch (err) { console.error('Create visit:', err.message); res.status(500).json({ error: err.message }); }

@@ -113,6 +113,7 @@ const INIT = {
   challenges:'', club_leader_confidence:'', actions_agreed:'',
   recommended_star_club:'no', star_club_reason:'',
   flag_school:'no', flag_reason:'', next_visit_date:'', other_details:'',
+  showcase_status: 'in_progress', showcase_photo: null,
 };
 
 const AUDIT_INIT = {
@@ -225,6 +226,8 @@ export default function MandE() {
       flag_reason: v.flag_reason||'',
       next_visit_date: v.next_visit_date?.split('T')[0]||'',
       other_details: v.other_details||'',
+      showcase_status: 'in_progress',
+      showcase_photo: null,
     });
     setEditId(v.id);
     setView('form');
@@ -636,6 +639,51 @@ export default function MandE() {
           <div style={row}>
             <label style={lbl}>Project notes / description</label>
             <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.project_notes} onChange={upd('project_notes')} placeholder="Describe the project..."/>
+          </div>
+
+          {/* Showcase mini form */}
+          <div style={{marginTop:'16px', background:'#f5eef8', borderRadius:'10px', padding:'16px', border:'1px solid #d7bde2'}}>
+            <p style={{margin:'0 0 14px 0', fontSize:'15px', fontWeight:'700', color:'#7d3c98'}}>🚀 Submit to Projects Showcase</p>
+
+            <p style={{margin:'0 0 8px 0', fontSize:'15px', fontWeight:'600', color:'#555'}}>Project status</p>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'16px'}}>
+              {[['in_progress','🔄 In Progress'],['completed','✅ Completed']].map(([val, label]) => (
+                <button key={val} onClick={() => setForm(f => ({...f, showcase_status:val}))}
+                  style={{minHeight:'48px', fontSize:'16px', width:'100%', borderRadius:'8px',
+                    border:`2px solid ${form.showcase_status===val ? (val==='completed'?'#1eb457':'#F7941D') : '#d7bde2'}`,
+                    background: form.showcase_status===val ? (val==='completed'?'#eafaf1':'#fff5e6') : '#fff',
+                    color: form.showcase_status===val ? (val==='completed'?'#1a8a4a':'#a0720a') : '#888',
+                    cursor:'pointer', fontWeight:'600'}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <p style={{margin:'0 0 8px 0', fontSize:'15px', fontWeight:'600', color:'#555'}}>Project photo</p>
+            {!form.showcase_photo ? (
+              <label style={{display:'block', width:'100%', minHeight:'48px', fontSize:'16px',
+                background:'#f8f9fa', border:'2px dashed #9b59b6', borderRadius:'10px',
+                cursor:'pointer', padding:'16px', textAlign:'center',
+                color:'#7d3c98', boxSizing:'border-box'}}>
+                📷 Add project photo (optional)
+                <input type="file" accept="image/*" style={{display:'none'}} onChange={e => {
+                  const file = e.target.files[0]; if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => setForm(f => ({...f, showcase_photo:reader.result}));
+                  reader.readAsDataURL(file);
+                }} />
+              </label>
+            ) : (
+              <div style={{position:'relative'}}>
+                <img src={form.showcase_photo} alt="Project" style={{width:'100%', maxHeight:'200px', objectFit:'cover', borderRadius:'10px', marginTop:'10px', display:'block'}} />
+                <button onClick={() => setForm(f => ({...f, showcase_photo:null}))}
+                  style={{position:'absolute', top:'18px', right:'8px', background:'#e74c3c', border:'none', color:'#fff', borderRadius:'50%', width:'28px', height:'28px', fontSize:'14px', cursor:'pointer', lineHeight:'28px', textAlign:'center', padding:0}}>×</button>
+              </div>
+            )}
+
+            <p style={{margin:'12px 0 0 0', fontSize:'12px', color:'#888', fontStyle:'italic'}}>
+              This will appear in the Projects Showcase automatically when you submit the observation
+            </p>
           </div>
         </>)}
 
