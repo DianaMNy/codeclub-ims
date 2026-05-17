@@ -275,7 +275,8 @@ export default function Pathways() {
       </div>
 
       {/* Tabs */}
-      <div style={styles.tabs}>
+      <style>{`.pw-tabs::-webkit-scrollbar{display:none}`}</style>
+      <div className="pw-tabs" style={styles.tabs}>
         {['overview','detail','record','syllabus','showcase'].map(tab => (
           <button key={tab} style={{...styles.tab,
             borderBottom: activeTab===tab ? '2px solid #69A9C9' : '2px solid transparent',
@@ -889,8 +890,8 @@ const styles = {
   pathwayLabel: { fontSize:'12px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   pathwayCount: { fontSize:'24px', fontWeight:'700', margin:'0 0 2px 0' },
   pathwaySub: { fontSize:'11px', color:'#888', margin:0 },
-  tabs: { display:'flex', gap:'0', marginBottom:'20px', borderBottom:'1px solid #e2e8f0' },
-  tab: { padding:'10px 20px', background:'none', border:'none', cursor:'pointer', fontSize:'14px', transition:'all 0.15s' },
+  tabs: { display:'flex', gap:'0', marginBottom:'20px', borderBottom:'1px solid #e2e8f0', overflowX:'auto', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', msOverflowStyle:'none' },
+  tab: { padding:'10px 20px', background:'none', border:'none', cursor:'pointer', fontSize:'14px', transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 },
   section: { background:'#fff', borderRadius:'12px', padding:'24px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', marginBottom:'20px' },
   sectionHead: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px' },
   sectionTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
