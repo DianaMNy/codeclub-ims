@@ -88,6 +88,7 @@ export default function DonorView() {
   const [data, setData]           = useState(null);
   const [schools, setSchools]     = useState([]);
   const [devices, setDevices]     = useState([]);
+  const [ecosystemTotal, setEcosystemTotal] = useState(0);
   const [loading, setLoading]     = useState(true);
   const [exporting, setExporting] = useState(false);
   const reportRef  = useRef(null);
@@ -102,11 +103,20 @@ export default function DonorView() {
       axios.get(import.meta.env.VITE_API_URL + '/api/device-audits', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       }),
+      api.get('/hos').catch(() => ({ data: [] })),
+      api.get('/ecosystem-extras').catch(() => ({ data: [] })),
+      api.get('/teachers').catch(() => ({ data: [] })),
     ])
-      .then(([d, s, dv]) => {
+      .then(([d, s, dv, hos, extras, teachers]) => {
         setData(d.data);
         setSchools(s.data);
         setDevices(dv.data || []);
+        // Ecosystem total = HOS + ecosystem extras + additional teachers
+        const hosCount     = Array.isArray(hos.data) ? hos.data.length : 0;
+        const extrasCount  = Array.isArray(extras.data) ? extras.data.length : 0;
+        const addlTeachers = Array.isArray(teachers.data)
+          ? teachers.data.filter(t => t.role === 'additional').length : 0;
+        setEcosystemTotal(hosCount + extrasCount + addlTeachers);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -206,7 +216,6 @@ export default function DonorView() {
   // Derived stats
   const schoolClubLeaders  = data.teachers?.club_leaders  || data.teachers?.total || 0;
   const centreClubLeaders  = data.teachers?.centre_leaders || data.schools?.centres || 0;
-  const ecosystemBuilders  = data.ecosystem?.total || 0;
 
   return (
     <Layout title="Donor View" subtitle="Read-only · Shareable impact summary · RPF 2026">
@@ -237,7 +246,7 @@ export default function DonorView() {
                 { value: centreClubLeaders, label:'Club Leaders (Centres)' },
                 { value: data.mentors.active, label:'Active Youth Mentors' },
                 { value: data.schools.counties || 3, label:'Counties Covered' },
-                { value: ecosystemBuilders, label:'Ecosystem Builders' },
+                { value: ecosystemTotal || data.ecosystem?.total || 0, label:'Ecosystem Builders' },
               ].map(stat => (
                 <div key={stat.label} style={S.heroStat}>
                   <p style={S.heroStatValue}>{stat.value}</p>
