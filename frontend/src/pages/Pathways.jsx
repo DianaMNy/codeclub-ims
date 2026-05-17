@@ -44,7 +44,7 @@ const EMPTY_PATHWAY = { key:'', label:'', icon:'📚', color:'#888888',
   l1:'', l2:'', l3:'', optional_1:'', optional_2:'', optional_3:'',
   project_1:'', project_2:'', project_3:'' };
 
-const EMPTY_SHOWCASE = { school_id:'', pathway:'scratch', project_name:'', level_reached:'l1', photo_url:'', notes:'', status:'in_progress', county_snapshot:'', school_name_snapshot:'' };
+const EMPTY_SHOWCASE = { school_id:'', pathway:'scratch', project_name:'', scratch_level:'l1', photo_url:'', notes:'', status:'in_progress', county_snapshot:'', school_name_snapshot:'', pathway_name_snapshot:'' };
 
 export default function Pathways() {
   const isMobile = useIsMobile();
@@ -167,17 +167,20 @@ export default function Pathways() {
 
   // ── Projects Showcase CRUD ───────────────────────────────────────────────────
   const openShowcaseEdit = (proj) => {
+    // Reverse-lookup the static pathway key from the pathway_name coming from the API
+    const pwKey = Object.keys(PATHWAY_STRUCTURE).find(k => PATHWAY_STRUCTURE[k].label === proj.pathway_name) || 'scratch';
     setShowcaseEditing(proj.id);
     setShowcaseForm({
       school_id: proj.school_id || '',
-      pathway: proj.pathway || 'scratch',
+      pathway: pwKey,
       project_name: proj.project_name || '',
-      level_reached: proj.level_reached || 'l1',
+      scratch_level: proj.scratch_level || 'l1',
       photo_url: proj.photo_url || '',
       notes: proj.notes || '',
       status: proj.status || 'in_progress',
       county_snapshot: proj.county_snapshot || '',
       school_name_snapshot: proj.school_name_snapshot || '',
+      pathway_name_snapshot: proj.pathway_name || '',
     });
     setShowShowcaseForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -186,7 +189,19 @@ export default function Pathways() {
   const handleShowcaseSubmit = async () => {
     if (!showcaseForm.project_name || showcaseForm.project_name === '__other__') return alert('Please select or enter a project name');
     const school = schools.find(s => s.id === showcaseForm.school_id);
-    const payload = { ...showcaseForm, county_snapshot: showcaseForm.county_snapshot || school?.county || '', school_name_snapshot: showcaseForm.school_name_snapshot || school?.official_name || '' };
+    const pw = PATHWAY_STRUCTURE[showcaseForm.pathway] || {};
+    const payload = {
+      school_id: showcaseForm.school_id || null,
+      pathway_id: null,
+      project_name: showcaseForm.project_name,
+      scratch_level: showcaseForm.scratch_level || null,
+      photo_url: showcaseForm.photo_url || null,
+      notes: showcaseForm.notes || null,
+      status: showcaseForm.status,
+      county_snapshot: showcaseForm.county_snapshot || school?.county || '',
+      school_name_snapshot: showcaseForm.school_name_snapshot || school?.official_name || '',
+      pathway_name_snapshot: pw.label || showcaseForm.pathway,
+    };
     setShowcaseSaving(true);
     try {
       if (showcaseEditing) { await api.put(`/projects-showcase/${showcaseEditing}`, payload); }
@@ -686,7 +701,7 @@ export default function Pathways() {
                   <div style={styles.formField}>
                     <label style={styles.label}>Pathway</label>
                     <select style={styles.formSelect} value={showcaseForm.pathway}
-                      onChange={e => setShowcaseForm(f => ({ ...f, pathway:e.target.value, project_name:'', level_reached:'l1' }))}>
+                      onChange={e => setShowcaseForm(f => ({ ...f, pathway:e.target.value, project_name:'', scratch_level:'l1', pathway_name_snapshot:PATHWAY_STRUCTURE[e.target.value]?.label||'' }))}>
                       {Object.keys(PATHWAY_STRUCTURE).map(key => (
                         <option key={key} value={key}>{PATHWAY_STRUCTURE[key].icon} {PATHWAY_STRUCTURE[key].label}</option>
                       ))}
@@ -711,8 +726,8 @@ export default function Pathways() {
 
                   <div style={styles.formField}>
                     <label style={styles.label}>Level Reached</label>
-                    <select style={styles.formSelect} value={showcaseForm.level_reached}
-                      onChange={e => setShowcaseForm(f => ({ ...f, level_reached:e.target.value }))}>
+                    <select style={styles.formSelect} value={showcaseForm.scratch_level}
+                      onChange={e => setShowcaseForm(f => ({ ...f, scratch_level:e.target.value }))}>
                       {LEVEL_ORDER.map((level, idx) => (
                         <option key={level} value={level}>
                           {idx < 3 ? `Level ${idx+1}` : `Optional ${idx-2}`} — {PATHWAY_STRUCTURE[showcaseForm.pathway]?.levels?.[level] || level}
@@ -782,7 +797,7 @@ export default function Pathways() {
               <select style={styles.filterSelect} value={showcasePathwayFilter} onChange={e => setShowcasePathwayFilter(e.target.value)}>
                 <option value="">All Pathways</option>
                 {Object.keys(PATHWAY_STRUCTURE).map(key => (
-                  <option key={key} value={key}>{PATHWAY_STRUCTURE[key].icon} {PATHWAY_STRUCTURE[key].label}</option>
+                  <option key={key} value={PATHWAY_STRUCTURE[key].label}>{PATHWAY_STRUCTURE[key].icon} {PATHWAY_STRUCTURE[key].label}</option>
                 ))}
               </select>
               <select style={styles.filterSelect} value={showcaseStatus} onChange={e => setShowcaseStatus(e.target.value)}>
@@ -801,7 +816,7 @@ export default function Pathways() {
                 const county = p.county || p.county_snapshot || '';
                 const matchSearch = !showcaseSearch || p.project_name.toLowerCase().includes(showcaseSearch.toLowerCase()) || (p.school_name||'').toLowerCase().includes(showcaseSearch.toLowerCase());
                 const matchCounty = !showcaseCounty || county === showcaseCounty;
-                const matchPathway = !showcasePathwayFilter || p.pathway === showcasePathwayFilter;
+                const matchPathway = !showcasePathwayFilter || p.pathway_name === showcasePathwayFilter;
                 const matchStatus = showcaseStatus === 'all' || p.status === showcaseStatus;
                 return matchSearch && matchCounty && matchPathway && matchStatus;
               });
@@ -817,14 +832,15 @@ export default function Pathways() {
               return (
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:'16px'}}>
                   {filtered.map(proj => {
-                    const pw = PATHWAY_STRUCTURE[proj.pathway] || {};
+                    const pwColor = Object.values(PATHWAY_STRUCTURE).find(pw => pw.label === proj.pathway_name)?.color || '#888';
                     const county = proj.county || proj.county_snapshot || '';
                     const schoolName = proj.school_name || proj.school_name_snapshot || '—';
+                    const isAuto = proj.source === 'auto';
                     return (
                       <div key={proj.id} style={styles.showcaseCard}>
                         {proj.photo_url
                           ? <img src={proj.photo_url} alt={proj.project_name} style={{width:'100%', height:'160px', objectFit:'cover', borderRadius:'10px 10px 0 0'}} />
-                          : <div style={{width:'100%', height:'160px', background:(pw.color||'#888')+'15', borderRadius:'10px 10px 0 0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'48px'}}>{pw.icon||'🚀'}</div>
+                          : <div style={{width:'100%', height:'160px', background:pwColor+'15', borderRadius:'10px 10px 0 0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'48px'}}>{proj.pathway_icon||'🚀'}</div>
                         }
                         <div style={{padding:'14px'}}>
                           <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'8px', marginBottom:'6px'}}>
@@ -833,19 +849,24 @@ export default function Pathways() {
                               {proj.status === 'completed' ? '✅ Done' : '🔄 In Progress'}
                             </span>
                           </div>
-                          <p style={{margin:'0 0 8px 0', fontSize:'12px', color:'#555', fontWeight:'500'}}>{schoolName}</p>
+                          <p style={{margin:'0 0 6px 0', fontSize:'12px', color:'#555', fontWeight:'500'}}>{schoolName}</p>
                           <div style={{display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'8px'}}>
                             {county && <span style={{...styles.badge, background:'#e8f4fd', color:'#2980b9', fontSize:'11px'}}>{county}</span>}
-                            {pw.label && <span style={{...styles.badge, background:(pw.color||'#888')+'20', color:pw.color||'#888', fontSize:'11px'}}>{pw.icon} {pw.label}</span>}
+                            {proj.pathway_name && <span style={{...styles.badge, background:pwColor+'20', color:pwColor, fontSize:'11px'}}>{proj.pathway_icon} {proj.pathway_name}</span>}
+                            <span style={{...styles.badge, background:isAuto?'#e8f4fd':'#f3eaff', color:isAuto?'#2980b9':'#7d3c98', fontSize:'11px'}}>
+                              {isAuto ? '📋 From M&E' : '➕ Manual'}
+                            </span>
                           </div>
-                          {proj.level_reached && <p style={{margin:'0 0 4px 0', fontSize:'11px', color:'#888'}}>📈 {pw.levels?.[proj.level_reached] || proj.level_reached}</p>}
+                          {proj.scratch_level && <p style={{margin:'0 0 4px 0', fontSize:'11px', color:'#888'}}>📈 {proj.scratch_level}</p>}
                           {proj.notes && <p style={{margin:'0 0 8px 0', fontSize:'12px', color:'#666', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical'}}>{proj.notes}</p>}
                           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'10px', paddingTop:'10px', borderTop:'1px solid #f0f0f0'}}>
                             <p style={{margin:0, fontSize:'11px', color:'#aaa'}}>{proj.mentor_name||'—'} · {proj.submitted_at ? new Date(proj.submitted_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</p>
-                            <div style={{display:'flex', gap:'4px'}}>
-                              <button style={styles.editBtn} onClick={() => openShowcaseEdit(proj)}>✏️</button>
-                              <button style={styles.deleteBtn} onClick={() => handleShowcaseDelete(proj.id, proj.project_name)}>🗑</button>
-                            </div>
+                            {!isAuto && (
+                              <div style={{display:'flex', gap:'4px'}}>
+                                <button style={styles.editBtn} onClick={() => openShowcaseEdit(proj)}>✏️</button>
+                                <button style={styles.deleteBtn} onClick={() => handleShowcaseDelete(proj.id, proj.project_name)}>🗑</button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
