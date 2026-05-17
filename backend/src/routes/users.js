@@ -5,12 +5,16 @@ const pool = require('../db/index');
 const bcrypt = require('bcryptjs');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
+// Add teacher_id column if it doesn't exist yet
+pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id INTEGER`)
+  .catch(err => console.error('users teacher_id migration:', err.message));
+
 // GET /api/users — all users (admin only)
 router.get('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT u.id, u.full_name, u.email, u.role,
-             u.is_active, u.created_at, u.mentor_id,
+             u.is_active, u.created_at, u.mentor_id, u.teacher_id,
              m.full_name AS mentor_name
       FROM users u
       LEFT JOIN mentors m ON u.mentor_id = m.id
@@ -22,16 +26,16 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 
 // POST /api/users — create user (admin only)
 router.post('/', requireAuth, requireAdmin, async (req, res) => {
-  const { full_name, email, password, role, mentor_id } = req.body;
+  const { full_name, email, password, role, mentor_id, teacher_id } = req.body;
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ error: 'All fields required' });
   }
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (full_name, email, password_hash, role, mentor_id)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, full_name, email, role`,
-      [full_name, email.toLowerCase(), hash, role, mentor_id || null]
+      `INSERT INTO users (full_name, email, password_hash, role, mentor_id, teacher_id)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, full_name, email, role, teacher_id`,
+      [full_name, email.toLowerCase(), hash, role, mentor_id || null, teacher_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

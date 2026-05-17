@@ -15,7 +15,7 @@ const app = express();
 
 // ── Tell the app what tools to use ──────────────────
 // Read JSON data from requests
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Allow frontend to connect
 app.use(cors({
@@ -90,6 +90,9 @@ app.use('/api/ecosystem-extras', ecosystemExtrasRoutes);
 
 const chatRoutes = require('./routes/chat');
 app.use('/api/chat', chatRoutes);
+
+const codyRoutes = require('./routes/cody');
+app.use('/api/cody', codyRoutes);
 
 // ── Start the server ──────────────────────────────────
 const PORT = process.env.PORT || 5000;
