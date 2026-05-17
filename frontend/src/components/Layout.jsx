@@ -7,6 +7,7 @@ const getMenuItems = (role) => {
     { label: 'Dashboard', path: '/dashboard', icon: '▦' },
     { label: 'Schools & Centres', path: '/schools', icon: '🏫' },
     { label: 'Mentors', path: '/mentors', icon: '👤' },
+    
   ];
 
   const tracking = [
@@ -23,6 +24,7 @@ const getMenuItems = (role) => {
     { label: 'Reports', path: '/reports', icon: '📋' },
     { label: 'Command Centre', path: '/command', icon: '🎯' },
     { label: 'Live Map', path: '/map', icon: '🗺️' },
+    { label: 'Community Chat', path: '/chat', icon: '💬' },
     { label: 'Donor View', path: '/donor', icon: '👁️' },
     ...(role === 'admin' ? [{ label: 'User Management', path: '/users', icon: '👥' }] : []),
   ];
@@ -45,9 +47,10 @@ const getMenuItems = (role) => {
         { label: 'Star Club Board', path: '/starclub', icon: '⭐' },
         { label: 'Flags & Alerts', path: '/flags', icon: '🚩' },
       ]},
-      { section: 'MAP', items: [
-        { label: 'Live Map', path: '/map', icon: '🗺️' },
-      ]},
+      { section: 'COMMUNITY', items: [
+  { label: 'Community Chat', path: '/chat', icon: '💬' },
+  { label: 'Live Map', path: '/map', icon: '🗺️' },
+]},
     ];
   }
 
@@ -60,6 +63,7 @@ const getMenuItems = (role) => {
       ]},
       { section: 'MY WORK', items: [
         { label: 'M & E', path: '/mande', icon: '📊' },
+        { label: 'Community Chat', path: '/chat', icon: '💬' },
       ]},
     ];
   }
