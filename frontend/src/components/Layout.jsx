@@ -1,6 +1,7 @@
 // src/components/Layout.jsx
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Chatbot from './Chatbot';
 
 const getMenuItems = (role) => {
   const overview = [
@@ -144,6 +145,7 @@ export default function Layout({ children, title, subtitle }) {
         {/* Content */}
         <div style={styles.content}>{children}</div>
       </div>
+      <Chatbot />
     </div>
   );
 }
