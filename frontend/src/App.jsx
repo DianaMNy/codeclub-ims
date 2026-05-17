@@ -17,6 +17,7 @@ import UserManagement from './pages/UserManagement';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import Chat from './pages/Chat';
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth();
@@ -113,6 +114,11 @@ function App() {
 <Route path="/users" element={
   <ProtectedRoute roles={['admin']}>
     <UserManagement />
+  </ProtectedRoute>
+} />
+<Route path="/chat" element={
+  <ProtectedRoute>
+    <Chat />
   </ProtectedRoute>
 } />
 

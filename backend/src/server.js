@@ -88,6 +88,9 @@ app.use('/api/hos', hosRoutes);
 const ecosystemExtrasRoutes = require('./routes/ecosystem_extras');
 app.use('/api/ecosystem-extras', ecosystemExtrasRoutes);
 
+const chatRoutes = require('./routes/chat');
+app.use('/api/chat', chatRoutes);
+
 // ── Start the server ──────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
