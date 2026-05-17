@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -37,6 +38,7 @@ const ROLE_LABELS = {
 };
 
 export default function Safeguarding() {
+  const isMobile = useIsMobile();
   const [people, setPeople]           = useState([]);
   const [loading, setLoading]         = useState(true);
   const [filterCounty, setFilterCounty]   = useState('');
@@ -284,13 +286,13 @@ export default function Safeguarding() {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'12px', marginBottom:'16px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'16px' },
   card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
   cardValue: { fontSize:'28px', fontWeight:'700', margin:'0 0 4px 0' },
   cardSub: { fontSize:'11px', color:'#8a96a3', margin:0 },
 
-  roleCards: { display:'grid', gridTemplateColumns:'repeat(8,1fr)', gap:'8px', marginBottom:'20px' },
+  roleCards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'8px', marginBottom:'20px' },
   roleCard: { background:'#fff', borderRadius:'8px', padding:'12px', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' },
   roleCardValue: { fontSize:'22px', fontWeight:'700', margin:'0 0 2px 0' },
   roleCardLabel: { fontSize:'10px', color:'#8a96a3', margin:0, fontWeight:'500' },

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -42,6 +43,7 @@ function StarRating({ score, max = 10 }) {
 }
 
 export default function StarClub() {
+  const isMobile = useIsMobile();
   const [evaluations, setEvaluations] = useState([]);
   const [schools, setSchools] = useState([]);
   const [mentors, setMentors] = useState([]);
@@ -332,7 +334,7 @@ export default function StarClub() {
 
         {/* Table */}
         {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
-          <table style={styles.table}>
+          <div style={{overflowX:'auto'}}><table style={{...styles.table, minWidth:'600px'}}>
             <thead><tr style={styles.thead}>
               <th style={styles.th}>RANK</th>
               <th style={styles.th}>SCHOOL</th>
@@ -398,7 +400,7 @@ export default function StarClub() {
                 </td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </Layout>
@@ -406,7 +408,7 @@ export default function StarClub() {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'16px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
@@ -430,13 +432,13 @@ const styles = {
   clearBtn: { padding:'9px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', color:'#e74c3c', fontSize:'13px', cursor:'pointer', fontWeight:'600' },
   formBox: { background:'#f8f9fa', borderRadius:'10px', padding:'20px', marginBottom:'20px', border:'1px solid #e2e8f0' },
   formTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 16px 0' },
-  formGrid: { display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'16px' },
+  formGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'16px' },
   formField: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   formInput: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', outline:'none' },
   formSelect: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },
   formTextarea: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', outline:'none', resize:'vertical', fontFamily:'inherit' },
-  criteriaGrid: { display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'10px', marginTop:'8px' },
+  criteriaGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'10px', marginTop:'8px' },
   criteriaItem: { display:'flex', alignItems:'center', gap:'10px', padding:'12px', borderRadius:'8px', transition:'all 0.15s' },
   formActions: { display:'flex', gap:'12px', marginTop:'20px' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#F5C518', color:'#1a2332', fontSize:'14px', fontWeight:'700', cursor:'pointer' },

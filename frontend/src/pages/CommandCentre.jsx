@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -27,6 +28,7 @@ function getInitials(name) { return name?.split(' ').map(n=>n[0]).join('').slice
 function getColor(name) { let s=0; for(let c of (name||'')) s+=c.charCodeAt(0); return AVATAR_COLORS[s%AVATAR_COLORS.length]; }
 
 export default function CommandCentre() {
+  const isMobile = useIsMobile();
   const [schools, setSchools] = useState([]);
   const [mentors, setMentors] = useState([]);
   const [flags, setFlags] = useState([]);
@@ -332,7 +334,7 @@ export default function CommandCentre() {
 }
 
 const styles = {
-  topStats: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', marginBottom:'16px' },
+  topStats: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'12px', marginBottom:'16px' },
   statCard: { background:'#fff', borderRadius:'10px', padding:'14px', boxShadow:'0 2px 6px rgba(0,0,0,0.06)' },
   statRow: { display:'flex', alignItems:'center', gap:'10px' },
   statLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 2px 0' },

@@ -1,7 +1,9 @@
 // src/components/Layout.jsx
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Chatbot from './Chatbot';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const getMenuItems = (role) => {
   const overview = [
@@ -77,13 +79,32 @@ export default function Layout({ children, title, subtitle }) {
   const location = useLocation();
   const { user, logoutUser } = useAuth();
   const menuItems = getMenuItems(user?.role);
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = () => { logoutUser(); navigate('/login'); };
 
   return (
     <div style={styles.shell}>
-      {/* ── Sidebar ── */}
-      <aside style={styles.sidebar}>
+      {/* Mobile top bar */}
+      {isMobile && (
+        <div style={styles.mobileTopBar}>
+          <button style={styles.hamburger} onClick={() => setSidebarOpen(o => !o)}>☰</button>
+          <span style={{color:'#fff', fontWeight:'700', fontSize:'16px'}}>EmpServe</span>
+          <span style={{color:'#69A9C9', fontSize:'12px'}}>Code Club M&E</span>
+        </div>
+      )}
+      {/* Overlay when sidebar open on mobile */}
+      {isMobile && sidebarOpen && (
+        <div style={styles.overlay} onClick={() => setSidebarOpen(false)} />
+      )}
+      {/* Sidebar */}
+      <aside style={{
+        ...styles.sidebar,
+        transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
+        transition: 'transform 0.25s ease',
+        zIndex: 200,
+      }}>
         {/* Logo */}
         <div style={styles.sidebarLogo}>
           <div style={styles.logoRow}>
@@ -96,8 +117,7 @@ export default function Layout({ children, title, subtitle }) {
             </div>
           </div>
         </div>
-
-        {/* Nav */}
+        {/* Nav - keep existing nav JSX exactly as-is */}
         <nav style={styles.sidebarNav}>
           {menuItems.map(group => (
             <div key={group.section}>
@@ -105,7 +125,7 @@ export default function Layout({ children, title, subtitle }) {
               {group.items.map(item => {
                 const active = location.pathname === item.path;
                 return (
-                  <button key={item.path} onClick={() => navigate(item.path)} style={{
+                  <button key={item.path} onClick={() => { navigate(item.path); if(isMobile) setSidebarOpen(false); }} style={{
                     ...styles.navItem,
                     background: active ? 'rgba(105,169,201,0.15)' : 'transparent',
                     color: active ? '#fff' : 'rgba(255,255,255,0.5)',
@@ -119,7 +139,6 @@ export default function Layout({ children, title, subtitle }) {
             </div>
           ))}
         </nav>
-
         {/* Footer */}
         <div style={styles.sidebarFooter}>
           <p style={styles.sfRole}>Logged in as</p>
@@ -128,20 +147,27 @@ export default function Layout({ children, title, subtitle }) {
           <button onClick={handleLogout} style={styles.signOutBtn}>Sign out</button>
         </div>
       </aside>
-
-      {/* ── Main ── */}
-      <div style={styles.main}>
-        {/* Topbar */}
-        <div style={styles.topbar}>
-          <div>
-            <h1 style={styles.pageTitle}>{title}</h1>
-            {subtitle && <p style={styles.pageSub}>{subtitle}</p>}
+      {/* Main */}
+      <div style={{...styles.main, marginLeft: isMobile ? 0 : '240px', maxWidth: isMobile ? '100vw' : 'calc(100vw - 240px)', paddingTop: isMobile ? '56px' : 0}}>
+        {/* Topbar - only on desktop */}
+        {!isMobile && (
+          <div style={styles.topbar}>
+            <div>
+              <h1 style={styles.pageTitle}>{title}</h1>
+              {subtitle && <p style={styles.pageSub}>{subtitle}</p>}
+            </div>
+            <div style={styles.topbarRight}>
+              <img src="/images/codeclub.png" alt="Code Club" style={{height:'32px',objectFit:'contain'}} />
+            </div>
           </div>
-          <div style={styles.topbarRight}>
-            <img src="/images/codeclub.png" alt="Code Club" style={{height:'32px',objectFit:'contain'}} />
+        )}
+        {/* Mobile page title */}
+        {isMobile && (
+          <div style={{padding:'12px 16px 0'}}>
+            <h1 style={{fontSize:'18px', fontWeight:'800', color:'#1a2332', margin:'0 0 2px'}}>{title}</h1>
+            {subtitle && <p style={{fontSize:'11px', color:'#8a96a3', margin:0}}>{subtitle}</p>}
           </div>
-        </div>
-
+        )}
         {/* Content */}
         <div style={styles.content}>{children}</div>
       </div>
@@ -152,6 +178,9 @@ export default function Layout({ children, title, subtitle }) {
 
 const styles = {
   shell: { display:'flex', minHeight:'100vh', fontFamily:"'Segoe UI', sans-serif" },
+  mobileTopBar: { position:'fixed', top:0, left:0, right:0, height:'56px', background:'#1a2332', display:'flex', alignItems:'center', gap:'12px', padding:'0 16px', zIndex:150, boxShadow:'0 2px 8px rgba(0,0,0,0.2)' },
+  hamburger: { background:'none', border:'none', color:'#fff', fontSize:'22px', cursor:'pointer', padding:'4px 8px', lineHeight:1 },
+  overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', zIndex:150 },
   sidebar: {
     width:'240px', minWidth:'240px', background:'#1a2332',
     display:'flex', flexDirection:'column',
@@ -191,10 +220,9 @@ const styles = {
     padding:'7px 12px', cursor:'pointer', fontSize:'12px', width:'100%',
   },
 main: {
-    marginLeft:'240px', flex:1,
+    flex:1,
     display:'flex', flexDirection:'column',
     minHeight:'100vh', background:'#f5f7fa',
-    maxWidth:'calc(100vw - 240px)',
   },
   topbar: {
     background:'#fff', borderBottom:'1px solid #e2e8f0',

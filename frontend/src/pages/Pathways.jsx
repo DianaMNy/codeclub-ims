@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -44,6 +45,7 @@ const EMPTY_PATHWAY = { key:'', label:'', icon:'📚', color:'#888888',
   project_1:'', project_2:'', project_3:'' };
 
 export default function Pathways() {
+  const isMobile = useIsMobile();
   const [progress, setProgress]     = useState([]);
   const [schools, setSchools]       = useState([]);
   const [teachers, setTeachers]     = useState([]);
@@ -237,7 +239,7 @@ export default function Pathways() {
           </div>
 
           {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
-            <table style={styles.table}>
+            <div style={{overflowX:'auto'}}><table style={{...styles.table, minWidth:'600px'}}>
               <thead><tr style={styles.thead}>
                 <th style={styles.th}>SCHOOL</th>
                 <th style={styles.th}>COUNTY</th>
@@ -291,7 +293,7 @@ export default function Pathways() {
                   </td></tr>
                 )}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}
@@ -505,7 +507,7 @@ export default function Pathways() {
                 </div>
 
                 <p style={{...styles.label, marginTop:'16px', marginBottom:'8px'}}>Projects (up to 3)</p>
-                <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px'}}>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'12px'}}>
                   {['project_1','project_2','project_3'].map((pj, idx) => (
                     <div key={pj} style={styles.formField}>
                       <label style={styles.label}>Project {idx+1}</label>
@@ -574,7 +576,7 @@ export default function Pathways() {
 }
 
 const styles = {
-  pathwayGrid: { display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'12px', marginBottom:'24px' },
+  pathwayGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'12px', marginBottom:'24px' },
   pathwayCard: { background:'#fff', borderRadius:'12px', padding:'16px', textAlign:'center', transition:'all 0.2s', cursor:'pointer' },
   pathwayLabel: { fontSize:'12px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   pathwayCount: { fontSize:'24px', fontWeight:'700', margin:'0 0 2px 0' },
@@ -605,7 +607,7 @@ const styles = {
   syllabusCard: { padding:'14px 16px', background:'#fff', borderRadius:'0 8px 8px 0', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' },
   formBox: { background:'#f8f9fa', borderRadius:'10px', padding:'20px', border:'1px solid #e2e8f0' },
   formTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 16px 0' },
-  formGrid: { display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'16px' },
+  formGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'16px' },
   formField: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   formInput: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', outline:'none' },

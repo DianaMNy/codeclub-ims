@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -42,6 +43,7 @@ const STATUS_STYLES = {
 const EMPTY_FORM = { school_id:'', mentor_id:'', reason:'', flag_type:'mentor_initiated', flagged_at:'' };
 
 export default function FlagsAlerts() {
+  const isMobile = useIsMobile();
   const [flags, setFlags]       = useState([]);
   const [schools, setSchools]   = useState([]);
   const [mentors, setMentors]   = useState([]);
@@ -405,7 +407,7 @@ export default function FlagsAlerts() {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'16px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
@@ -415,7 +417,7 @@ const styles = {
   alertSub: { fontSize:'12px', color:'#e74c3c', margin:'4px 0 0' },
   formBox: { background:'#fff9f9', borderRadius:'10px', padding:'20px', marginBottom:'16px', border:'1px solid #fcc' },
   formTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 16px 0' },
-  formGrid: { display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'16px' },
+  formGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'16px' },
   formField: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   formSelect: { padding:'10px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', cursor:'pointer', outline:'none' },

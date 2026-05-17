@@ -1,7 +1,11 @@
-// src/pages/Ecosystem.jsx
-import { useEffect, useState } from 'react';
+// src/pages/DonorView.jsx
+import { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -10,566 +14,562 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-const KENYA_COUNTIES = [
-  'Mombasa','Kwale','Kilifi','Tana River','Lamu','Taita-Taveta',
-  'Garissa','Wajir','Mandera','Marsabit','Isiolo','Meru',
-  'Tharaka-Nithi','Embu','Kitui','Machakos','Makueni','Nyandarua',
-  'Nyeri','Kirinyaga',"Murang'a",'Kiambu','Turkana','West Pokot',
-  'Samburu','Trans Nzoia','Uasin Gishu','Elgeyo-Marakwet','Nandi',
-  'Baringo','Laikipia','Nakuru','Narok','Kajiado','Kericho','Bomet',
-  'Kakamega','Vihiga','Bungoma','Busia','Siaya','Kisumu','Homa Bay',
-  'Migori','Kisii','Nyamira','Nairobi'
+const AREA_COORDS = {
+  'Githurai': [-1.2167, 36.9167], 'Wendani': [-1.2000, 36.9000],
+  'Kenyatta road': [-1.1167, 37.0167], 'Kenyatta Road': [-1.1167, 37.0167],
+  'Kahuro': [-0.9333, 36.9500], 'Kahawa West': [-1.1833, 36.9333],
+  'Kahawa west': [-1.1833, 36.9333], 'Ruiru': [-1.1500, 36.9667],
+  'Thika': [-1.0333, 37.0667], 'Kiambu': [-1.1719, 36.8356],
+  'Kikuyu': [-1.2467, 36.6617], 'Limuru': [-1.1022, 36.6411],
+  'Tigoni': [-1.0833, 36.7167], 'Ngoigwa': [-1.0167, 37.0500],
+  'Juja': [-1.1000, 37.0167], 'Kiandutu': [-1.0500, 37.0833],
+  'Mugutha': [-1.2000, 36.8000],
+  'Kajiado': [-1.8500, 36.7833], 'Kajiado Town': [-1.8500, 36.7833],
+  'Ngong': [-1.3667, 36.6500], 'Kitengela': [-1.4750, 36.9617],
+  'Rongai': [-1.3944, 36.7458], 'Kiserian': [-1.3833, 36.6833],
+  'Isinya': [-1.9833, 36.9667], 'Namanga': [-2.5500, 36.7833],
+  'Loitokitok': [-2.9000, 37.5167], 'Overall': [-1.4750, 36.9617],
+  "Murang'a": [-0.7167, 37.1500], 'Muranga': [-0.7167, 37.1500],
+  'Muranga East': [-0.6833, 37.2000], "Murang'a East": [-0.6833, 37.2000],
+  'Kangema': [-0.7500, 36.9000], 'Kigumo': [-0.8167, 37.0000],
+  'Maragua': [-0.7333, 37.1333],
+  'K-road': [-1.2800, 36.8200], 'K-road & Juja': [-1.2000, 37.0000],
+  'Githurai & Wendani': [-1.2083, 36.9083], 'Mathioya': [-0.8500, 36.8500],
+};
+const COUNTY_CENTER = {
+  'Kiambu':   [-1.1719, 36.9356],
+  'Kajiado':  [-1.8500, 36.7833],
+  "Murang'a": [-0.7167, 37.1500],
+};
+function getCoords(school) {
+  if (school.subcounty_area && AREA_COORDS[school.subcounty_area]) {
+    const [lat, lng] = AREA_COORDS[school.subcounty_area];
+    return [lat + (Math.random()-0.5)*0.02, lng + (Math.random()-0.5)*0.02];
+  }
+  if (school.county && COUNTY_CENTER[school.county]) {
+    const [lat, lng] = COUNTY_CENTER[school.county];
+    return [lat + (Math.random()-0.5)*0.08, lng + (Math.random()-0.5)*0.08];
+  }
+  return [-1.2921+(Math.random()-0.5)*0.1, 36.8219+(Math.random()-0.5)*0.1];
+}
+
+const COUNTY_COLORS = { 'Kiambu':'#69A9C9', 'Kajiado':'#F7941D', "Murang'a":'#1eb457' };
+const STATUS_COLORS = { 'active':'#1eb457', 'enrolled':'#F7941D', 'inactive':'#e74c3c' };
+const BRAND = { green:'#1eb457', blue:'#69A9C9', orange:'#F7941D', purple:'#9b59b6', red:'#e74c3c', gold:'#F5C518' };
+
+const IMPACT_STORIES = [
+  { quote:"Before Code Club, I thought coding was only for city children. Now I teach Scratch to 45 learners every Saturday and two of my students won a regional showcase.", name:"Grace Wanjiru", role:"Code Club Leader", county:"Kiambu", color:"#69A9C9" },
+  { quote:"My daughter built a website for our family business at age 12. She learned HTML at the Code Club in our community centre. I never imagined this was possible.", name:"Parent, Kajiado", role:"Community Member", county:"Kajiado", color:"#F7941D" },
+  { quote:"We went from zero to 45 active learners in one term. The mentor support and structured pathway made it possible even with limited resources.", name:"Jackson Mwirigi", role:"Centre Manager, Jiunde Innovation Hub", county:"Murang'a", color:"#1eb457" },
 ];
 
-const COUNTY_COLORS = {
-  'Kiambu': '#69A9C9', 'Kajiado': '#F7941D', "Murang'a": '#1eb457',
+function ProgressBar({ value, max, color, dark=true }) {
+  const pct = max ? Math.min(Math.round((value/max)*100), 100) : 0;
+  return (
+    <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+      <div style={{flex:1, background:dark?'rgba(255,255,255,0.2)':'#f0f0f0', borderRadius:'999px', height:'8px'}}>
+        <div style={{width:`${pct}%`, background:color, height:'8px', borderRadius:'999px', transition:'width 0.8s'}}/>
+      </div>
+      <span style={{fontSize:'13px', color:dark?'#fff':'#555', minWidth:'40px', textAlign:'right', fontWeight:'600'}}>{pct}%</span>
+    </div>
+  );
+}
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{background:'#1a2332', border:'1px solid rgba(105,169,201,0.3)', borderRadius:'8px', padding:'10px 14px'}}>
+      <p style={{margin:'0 0 4px', fontSize:'12px', fontWeight:'700', color:'#69A9C9'}}>{label}</p>
+      {payload.map((p,i) => <p key={i} style={{margin:0, fontSize:'12px', color:'#fff'}}>{p.name}: <strong style={{color:p.color}}>{p.value}</strong></p>)}
+    </div>
+  );
 };
 
-const ROLE_LABELS = {
-  'additional':         { label: '👩‍🏫 Additional Educator',  color: '#1eb457', bg: '#eafaf1' },
-  'head_of_school':     { label: '🏫 Head of School',         color: '#8e44ad', bg: '#f5eef8' },
-  'centre_manager':     { label: '🏢 Centre Manager',         color: '#9b59b6', bg: '#f0e6ff' },
-  'ict_intern':         { label: '💻 ICT Intern (CDE)',        color: '#F7941D', bg: '#fdecd5' },
-  'subcounty_director': { label: '📋 Sub-County Director',    color: '#e74c3c', bg: '#fdedec' },
-};
+export default function DonorView() {
+  const isMobile = useIsMobile();
+  const [data, setData]           = useState(null);
+  const [schools, setSchools]     = useState([]);
+  const [devices, setDevices]     = useState([]);
+  const [ecosystemTotal, setEcosystemTotal] = useState(0);
+  const [loading, setLoading]     = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const reportRef  = useRef(null);
+  const mapRef     = useRef(null);
+  const mapInstRef = useRef(null);
+  const markersRef = useRef([]);
 
-const EMPTY_HOS = {
-  full_name:'', phone:'', email:'', school_id:'',
-  role:'head_of_school', county:'',
-  training_completed:false, safeguarding_done:false, survey_done:false,
-};
-const EMPTY_EXTRA = {
-  full_name:'', role:'ict_intern', phone:'', email:'',
-  county:'', subcounty_area:'',
-  training_completed:false, safeguarding_done:false, survey_done:false,
-};
+  useEffect(() => {
+    Promise.all([
+      api.get('/donor'),
+      api.get('/schools'),
+      axios.get(import.meta.env.VITE_API_URL + '/api/device-audits', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      }),
+      api.get('/hos').catch(() => ({ data: [] })),
+      api.get('/ecosystem-extras').catch(() => ({ data: [] })),
+      api.get('/teachers').catch(() => ({ data: [] })),
+    ])
+      .then(([d, s, dv, hos, extras, teachers]) => {
+        setData(d.data);
+        setSchools(s.data);
+        setDevices(dv.data || []);
+        // Ecosystem total = HOS + ecosystem extras + additional teachers
+        const hosCount     = Array.isArray(hos.data) ? hos.data.length : 0;
+        const extrasCount  = Array.isArray(extras.data) ? extras.data.length : 0;
+        const addlTeachers = Array.isArray(teachers.data)
+          ? teachers.data.filter(t => t.role === 'additional').length : 0;
+        setEcosystemTotal(hosCount + extrasCount + addlTeachers);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
-export default function Ecosystem() {
-  const [hosList, setHosList]         = useState([]);
-  const [extras, setExtras]           = useState([]);
-  const [additionals, setAdditionals] = useState([]);
-  const [schools, setSchools]         = useState([]);
-  const [loading, setLoading]         = useState(true);
+  // Device audit stats
+  const totalDevices     = devices.reduce((s,d) => s+(parseInt(d.total_devices)||0), 0);
+  const totalFunctioning = devices.reduce((s,d) => s+(parseInt(d.functioning_devices)||0), 0);
+  const totalFaulty      = devices.reduce((s,d) => s+(parseInt(d.faulty_devices)||0), 0);
+  const funcRate         = totalDevices ? Math.round((totalFunctioning/totalDevices)*100) : 0;
+  const deviceTypeStats  = ['Desktops','Laptops','Tablets','Projectors'].map(type => ({
+    type,
+    total:       devices.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.total_devices)||0),0),
+    functioning: devices.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.functioning_devices)||0),0),
+    faulty:      devices.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.faulty_devices)||0),0),
+  })).filter(d => d.total > 0);
 
-  const [filterRole, setFilterRole]               = useState('');
-  const [filterCounty, setFilterCounty]           = useState('');
-  const [filterTraining, setFilterTraining]       = useState('');
-  const [filterSafeguarding, setFilterSafeguarding] = useState('');
-  const [filterSurvey, setFilterSurvey]           = useState('');
-  const [search, setSearch]                       = useState('');
-
-  const [showModal, setShowModal]         = useState(null);
-  const [editingItem, setEditingItem]     = useState(null);
-  const [hosForm, setHosForm]             = useState(EMPTY_HOS);
-  const [extraForm, setExtraForm]         = useState(EMPTY_EXTRA);
-  const [saving, setSaving]               = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [h, e, t, s] = await Promise.all([
-        api.get('/hos'),
-        api.get('/ecosystem-extras'),
-        api.get('/teachers'),
-        api.get('/schools'),
-      ]);
-      setHosList(h.data);
-      setExtras(e.data);
-      setAdditionals(t.data.filter(t => t.role === 'additional'));
-      setSchools(s.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  const allBuilders = [
-    ...additionals.map(t => ({
-      ...t, _source:'teacher',
-      school_name: t.school_name,
-      survey_done: t.survey_done ?? false,
-    })),
-    ...hosList.map(h => ({
-      ...h, _source:'hos',
-      role: h.role || 'head_of_school',
-      survey_done: h.survey_done ?? false,
-    })),
-    ...extras.map(e => ({
-      ...e, _source:'extra',
-      school_name: null,
-    })),
-  ];
-
-  const filtered = allBuilders.filter(b => {
-    if (filterRole && b.role !== filterRole) return false;
-    if (filterCounty && b.county !== filterCounty) return false;
-    if (filterTraining === 'yes' && !b.training_completed) return false;
-    if (filterTraining === 'no' && b.training_completed) return false;
-    if (filterSafeguarding === 'yes' && !b.safeguarding_done) return false;
-    if (filterSafeguarding === 'no' && b.safeguarding_done) return false;
-    if (filterSurvey === 'yes' && !b.survey_done) return false;
-    if (filterSurvey === 'no' && b.survey_done) return false;
-    if (search && !b.full_name?.toLowerCase().includes(search.toLowerCase()) &&
-        !b.school_name?.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
-  const centreManagers  = allBuilders.filter(b => b.role === 'centre_manager').length;
-  const hosCount        = allBuilders.filter(b => b.role === 'head_of_school').length;
-  const additionalCount = allBuilders.filter(b => b.role === 'additional').length;
-  const ictInterns      = allBuilders.filter(b => b.role === 'ict_intern').length;
-  const directors       = allBuilders.filter(b => b.role === 'subcounty_director').length;
-
-  // ── Toggle — fixes the UUID and person_type issues ─────────────────────────
-  const handleToggle = async (item, field) => {
-    const newVal = !item[field];
-    try {
-      if (item._source === 'teacher') {
-        await api.put(`/teachers/${item.id}`, {
-          ...item,
-          school_id: item.school_id || null,
-          [field]: newVal,
-        });
-      } else if (item._source === 'hos') {
-        await api.put(`/hos/${item.id}`, {
-          ...item,
-          school_id: item.school_id || null,
-          [field]: newVal,
-        });
-      } else if (item._source === 'extra') {
-        await api.put(`/ecosystem-extras/${item.id}`, { ...item, [field]: newVal });
-      }
-      fetchData();
-    } catch (err) { alert(err.response?.data?.error || 'Failed to update'); }
-  };
-
-  const openAdd = (type) => {
-    setEditingItem(null);
-    if (type === 'hos')   setHosForm(EMPTY_HOS);
-    if (type === 'extra') setExtraForm(EMPTY_EXTRA);
-    setShowModal(type);
-  };
-
-  const openEdit = (item) => {
-    setEditingItem(item);
-    if (item._source === 'hos') {
-      setHosForm({
-        full_name: item.full_name||'', phone: item.phone||'', email: item.email||'',
-        school_id: item.school_id||'', role: item.role||'head_of_school',
-        county: item.county||'',
-        training_completed: item.training_completed||false,
-        safeguarding_done:  item.safeguarding_done||false,
-        survey_done:        item.survey_done||false,
-      });
-      setShowModal('hos');
-    } else if (item._source === 'extra') {
-      setExtraForm({
-        full_name: item.full_name||'', role: item.role||'ict_intern',
-        phone: item.phone||'', email: item.email||'',
-        county: item.county||'', subcounty_area: item.subcounty_area||'',
-        training_completed: item.training_completed||false,
-        safeguarding_done:  item.safeguarding_done||false,
-        survey_done:        item.survey_done||false,
-      });
-      setShowModal('extra');
+  // Map setup
+  useEffect(() => {
+    if (!schools.length || !mapRef.current) return;
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
     }
-    // Additional educators — show message to edit in Teachers tab
-  };
+    import('leaflet').then(L => {
+      delete L.Icon.Default.prototype._getIconUrl;
+      if (!mapInstRef.current) {
+        mapInstRef.current = L.map(mapRef.current, { center:[-1.4, 36.9], zoom:9, zoomControl:true, scrollWheelZoom:false });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors', maxZoom:18 }).addTo(mapInstRef.current);
+      }
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
+      schools.forEach(school => {
+        const [lat, lng] = getCoords(school);
+        const color = STATUS_COLORS[school.status] || '#888';
+        const isCentre = school.type === 'community_centre';
+        const icon = L.divIcon({
+          html: `<div style="width:${isCentre?'14px':'12px'};height:${isCentre?'14px':'12px'};border-radius:${isCentre?'3px':'50%'};background:${color};border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer;"></div>`,
+          className:'', iconSize:[16,16], iconAnchor:[8,8],
+        });
+        const marker = L.marker([lat,lng], {icon}).addTo(mapInstRef.current)
+          .bindPopup(`<div style="font-family:'Segoe UI',sans-serif;min-width:180px;"><p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#1a2332;">${school.official_name}</p><p style="margin:0 0 6px;font-size:11px;color:#888;">${school.club_id||'—'} · ${school.county}</p><span style="padding:2px 8px;border-radius:999px;font-size:11px;background:${color}20;color:${color};font-weight:600;">● ${school.status}</span>${school.learner_count?`<p style="margin:6px 0 0;font-size:11px;color:#555;">👩‍💻 ${school.learner_count} learners</p>`:''}</div>`);
+        markersRef.current.push(marker);
+      });
+      if (markersRef.current.length > 0) {
+        const group = L.featureGroup(markersRef.current);
+        mapInstRef.current.fitBounds(group.getBounds().pad(0.1));
+      }
+    });
+  }, [schools]);
 
-  const handleSaveHos = async () => {
-    if (!hosForm.full_name) return alert('Full name is required');
-    setSaving(true);
+  const handleExportPDF = async () => {
+    if (!reportRef.current || exporting) return;
+    setExporting(true);
     try {
-      const payload = { ...hosForm, school_id: hosForm.school_id || null };
-      if (editingItem) { await api.put(`/hos/${editingItem.id}`, payload); }
-      else { await api.post('/hos', payload); }
-      setShowModal(null); fetchData();
-    } catch (err) { alert(err.response?.data?.error || err.message); }
-    finally { setSaving(false); }
+      const canvas = await html2canvas(reportRef.current, {scale:1.5, backgroundColor:'#f8f9fa', logging:false, useCORS:true});
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = (canvas.height*pdfW)/canvas.width;
+      const pageH = pdf.internal.pageSize.getHeight();
+      let y = 0;
+      while (y < pdfH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -y, pdfW, pdfH);
+        y += pageH;
+      }
+      pdf.save(`Code_Club_Kenya_Donor_Impact_${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch(e) { console.error(e); }
+    finally { setExporting(false); }
   };
 
-  const handleSaveExtra = async () => {
-    if (!extraForm.full_name) return alert('Full name is required');
-    setSaving(true);
-    try {
-      if (editingItem) { await api.put(`/ecosystem-extras/${editingItem.id}`, extraForm); }
-      else { await api.post('/ecosystem-extras', extraForm); }
-      setShowModal(null); fetchData();
-    } catch (err) { alert(err.response?.data?.error || err.message); }
-    finally { setSaving(false); }
+  const handleShare = async () => {
+    if (navigator.share) {
+      await navigator.share({title:'Code Club Kenya — Donor Impact Summary', text:'RPF 2026 Programme Impact Report', url:window.location.href});
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      alert('Link copied to clipboard!');
+    }
   };
 
-  const handleDelete = async () => {
-    try {
-      if (deleteConfirm._source === 'hos') await api.delete(`/hos/${deleteConfirm.id}`);
-      else if (deleteConfirm._source === 'extra') await api.delete(`/ecosystem-extras/${deleteConfirm.id}`);
-      setDeleteConfirm(null); fetchData();
-    } catch (err) { alert(err.response?.data?.error || 'Failed to delete'); }
-  };
-
-  const exportCSV = () => {
-    const headers = ['Name','Role','School/Centre','County','Training','Safeguarding','Survey'];
-    const rows = filtered.map(b => [
-      b.full_name, b.role, b.school_name||'', b.county||'',
-      b.training_completed?'Yes':'No',
-      b.safeguarding_done?'Yes':'No',
-      b.survey_done?'Yes':'No',
-    ]);
-    const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
-    const blob = new Blob([csv],{type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='ecosystem_export.csv'; a.click();
-  };
-
-  const ToggleBtn = ({ item, field, yesLabel='✅ Done', noLabel='❌ Not done', noColor='#e74c3c', noBg='#fdedec' }) => (
-    <span style={{...styles.checkBadge, cursor:'pointer',
-      background:item[field]?'#eafaf1':noBg, color:item[field]?'#1a8a4a':noColor}}
-      onClick={() => handleToggle(item, field)} title="Click to toggle">
-      {item[field] ? yesLabel : noLabel}
-    </span>
+  if (loading) return (
+    <Layout title="Donor View" subtitle="Read-only · Shareable impact summary · RPF 2026">
+      <p style={{color:'#888',padding:'40px',textAlign:'center'}}>Loading impact data...</p>
+    </Layout>
+  );
+  if (!data) return (
+    <Layout title="Donor View" subtitle="Read-only · Shareable impact summary · RPF 2026">
+      <p style={{color:'#888',padding:'40px',textAlign:'center'}}>No data available</p>
+    </Layout>
   );
 
-  const CheckRow = ({ label, checked, onChange }) => (
-    <label style={styles.checkLabel}>
-      <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} />
-      {' '}{label}
-    </label>
-  );
+  const growthChartData = (data.growth||[]).map(g => ({ month:g.month, 'Schools':parseInt(g.cumulative_schools) }));
+
+  // Derived stats
+  const schoolClubLeaders  = data.teachers?.club_leaders  || data.teachers?.total || 0;
+  const centreClubLeaders  = data.teachers?.centre_leaders || data.schools?.centres || 0;
 
   return (
-    <Layout title="Ecosystem Building" subtitle="Managers · Educators · Partners · RPF 2026">
+    <Layout title="Donor View" subtitle="Read-only · Shareable impact summary · RPF 2026">
 
-      {/* Stat Cards */}
-      <div style={styles.cards}>
-        {[
-          { label:'CENTRE MANAGERS',      value:centreManagers,     sub:'community centres',     color:'#9b59b6' },
-          { label:'HEADS OF SCHOOL',      value:hosCount,           sub:'safeguarding sponsors',  color:'#8e44ad' },
-          { label:'ADDITIONAL EDUCATORS', value:additionalCount,    sub:'extra teachers',         color:'#1eb457' },
-          { label:'ICT INTERNS',          value:ictInterns,         sub:'CDE interns',            color:'#F7941D' },
-          { label:'SUB-COUNTY DIRECTORS', value:directors,          sub:'education directors',    color:'#e74c3c' },
-          { label:'TOTAL ECOSYSTEM',      value:allBuilders.length, sub:'all categories',         color:'#69A9C9' },
-        ].map(card => (
-          <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
-            <p style={styles.cardLabel}>{card.label}</p>
-            <p style={styles.cardValue}>{card.value}</p>
-            <p style={{...styles.cardSub, color:card.color}}>{card.sub}</p>
-          </div>
-        ))}
+      <div style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'16px'}}>
+        <button style={S.shareBtn} onClick={handleShare}>🔗 Share</button>
+        <button style={{...S.pdfBtn, opacity:exporting?0.7:1}} onClick={handleExportPDF} disabled={exporting}>
+          {exporting?'⏳ Generating PDF...':'↓ Download PDF'}
+        </button>
       </div>
 
-      {/* Filter Bar */}
-      <div style={styles.filterBar}>
-        <div style={styles.filters}>
-          <input style={styles.search} placeholder="🔍 Search name or school..."
-            value={search} onChange={e=>setSearch(e.target.value)} />
-          <select style={styles.select} value={filterRole} onChange={e=>setFilterRole(e.target.value)}>
-            <option value="">All Roles</option>
-            <option value="centre_manager">Centre Managers</option>
-            <option value="head_of_school">Heads of School</option>
-            <option value="additional">Additional Educators</option>
-            <option value="ict_intern">ICT Interns</option>
-            <option value="subcounty_director">Sub-County Directors</option>
-          </select>
-          <select style={styles.select} value={filterCounty} onChange={e=>setFilterCounty(e.target.value)}>
-            <option value="">All Counties</option>
-            {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
-          </select>
-          <select style={styles.select} value={filterTraining} onChange={e=>setFilterTraining(e.target.value)}>
-            <option value="">All Training</option>
-            <option value="yes">✅ Training Done</option>
-            <option value="no">❌ Not Trained</option>
-          </select>
-          <select style={styles.select} value={filterSafeguarding} onChange={e=>setFilterSafeguarding(e.target.value)}>
-            <option value="">All Safeguarding</option>
-            <option value="yes">✅ Safeguarding Done</option>
-            <option value="no">❌ Not Done</option>
-          </select>
-          <select style={styles.select} value={filterSurvey} onChange={e=>setFilterSurvey(e.target.value)}>
-            <option value="">All Survey</option>
-            <option value="yes">✅ Survey Done</option>
-            <option value="no">❌ Not Done</option>
-          </select>
-          {(filterRole||filterCounty||filterTraining||filterSafeguarding||filterSurvey||search) && (
-            <button style={styles.clearBtn} onClick={()=>{
-              setFilterRole('');setFilterCounty('');setFilterTraining('');
-              setFilterSafeguarding('');setFilterSurvey('');setSearch('');
-            }}>✕ Clear</button>
-          )}
+      <div ref={reportRef}>
+
+        {/* ── HERO ──────────────────────────────────────────────────────── */}
+        <div style={S.hero}>
+          <div style={S.heroLeft}>
+            <p style={S.heroTag}>EMPSERVE KENYA · RASPBERRY PI FOUNDATION · RPF 2026</p>
+            <h1 style={S.heroTitle}>Code Club Kenya</h1>
+            <h2 style={S.heroSub}>Donor Impact Summary</h2>
+            <p style={S.heroDesc}>Jan 2025 – Dec 2026 · Kiambu, Kajiado & Murang'a Counties · Live Programme Database</p>
+
+            {/* NEW hero stats */}
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'12px', marginTop:'24px'}}>
+              {[
+                { value: parseInt(data.schools.active||0) + parseInt(data.schools.centres||0), label:'Coding Clubs' },
+                { value: parseInt(data.schools.learners||0).toLocaleString(), label:'Learners Registered' },
+                { value: schoolClubLeaders, label:'Club Leaders (Schools)' },
+                { value: centreClubLeaders, label:'Club Leaders (Centres)' },
+                { value: data.mentors.active, label:'Active Youth Mentors' },
+                { value: data.schools.counties || 3, label:'Counties Covered' },
+                { value: ecosystemTotal || data.ecosystem?.total || 0, label:'Ecosystem Builders' },
+              ].map(stat => (
+                <div key={stat.label} style={S.heroStat}>
+                  <p style={S.heroStatValue}>{stat.value}</p>
+                  <p style={S.heroStatLabel}>{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={S.heroRight}>
+            <div style={S.heroCircle}>
+              <p style={S.heroCircleValue}>{parseInt(data.schools.learners||0).toLocaleString()}</p>
+              <p style={S.heroCircleLabel}>Learners</p>
+              <p style={S.heroCircleLabel}>Reached</p>
+            </div>
+          </div>
         </div>
-        <div style={styles.actions}>
-          <button style={styles.exportBtn} onClick={exportCSV}>↓ Export CSV</button>
-          <button style={styles.hosBtn} onClick={()=>openAdd('hos')}>+ Add HOS / Centre Manager</button>
-          <button style={styles.addBtn} onClick={()=>openAdd('extra')}>+ Add ICT/Director</button>
+
+        {/* ── HIGHLIGHT CARDS ───────────────────────────────────────────── */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'20px'}}>
+          {[
+            { icon:'🌍', value:'3', label:'Counties active', sub:'47 counties — national scale opportunity', color:BRAND.blue },
+            { icon:'📈', value:`${Math.round(parseInt(data.schools.active||0)/Math.max(parseInt(data.schools.total||1)-parseInt(data.schools.centres||0),1)*100)}%`, label:'Club activation rate', sub:`${data.schools.active} of ${parseInt(data.schools.total)-parseInt(data.schools.centres)} schools running sessions`, color:BRAND.orange },
+            { icon:'🎓', value:parseInt(data.schools.learners||0).toLocaleString(), label:'Young coders reached', sub:'across 3 Kenyan counties', color:BRAND.green },
+            { icon:'💻', value:totalDevices.toLocaleString(), label:'Devices inventoried', sub:`${funcRate}% functioning · ${totalFaulty} need repair`, color:BRAND.purple },
+          ].map(c => (
+            <div key={c.label} style={{...S.highlightCard, borderLeft:`4px solid ${c.color}`}}>
+              <p style={S.highlightIcon}>{c.icon}</p>
+              <p style={S.highlightValue}>{c.value}</p>
+              <p style={S.highlightLabel}>{c.label}</p>
+              <p style={S.highlightSub}>{c.sub}</p>
+            </div>
+          ))}
         </div>
+
+        {/* ── PROGRAMME HEALTH + FUNDED SCALE ─────────────────────────── */}
+        <div style={S.row}>
+          <div style={{...S.card, flex:2}}>
+            <p style={S.cardTitle}>Programme Health</p>
+            <p style={S.cardSub}>Active clubs vs total enrolled</p>
+            <div style={{marginTop:'20px', display:'flex', flexDirection:'column', gap:'20px'}}>
+              {[
+                { label:'Active code clubs',          value:data.schools.active,       max:parseInt(data.schools.total)-parseInt(data.schools.centres), color:BRAND.green },
+                { label:'Community centres active',   value:data.schools.centres,      max:data.schools.centres,           color:BRAND.purple },
+                { label:'Pathways showcase-eligible', value:data.pathways.completed,   max:Math.max(data.pathways.total,1), color:BRAND.orange },
+                { label:'Devices functioning',        value:totalFunctioning,          max:Math.max(totalDevices,1),        color:BRAND.blue },
+              ].map(item => (
+                <div key={item.label}>
+                  <div style={{display:'flex', justifyContent:'space-between', marginBottom:'6px'}}>
+                    <span style={{fontSize:'14px', color:'#ccc'}}>{item.label}</span>
+                    <span style={{fontSize:'13px', color:'#fff', fontWeight:'600'}}>{item.value}/{item.max}</span>
+                  </div>
+                  <ProgressBar value={item.value} max={item.max} color={item.color} dark />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{...S.card, flex:1}}>
+            <p style={S.cardTitle}>Funded Scale — Year 5 Vision</p>
+            <p style={S.cardSub}>Current vs target</p>
+            <div style={{marginTop:'20px', display:'flex', flexDirection:'column', gap:'16px'}}>
+              {[
+                { label:'Schools (750 target)',     current:data.schools.total,                  target:750,   color:BRAND.orange },
+                { label:'Learners (25,000 target)', current:parseInt(data.schools.learners||0),  target:25000, color:BRAND.green },
+                { label:'Educators (1,200 target)', current:data.teachers.total,                 target:1200,  color:BRAND.blue },
+                { label:'Counties (20+ target)',    current:3,                                   target:20,    color:BRAND.purple },
+              ].map(item => (
+                <div key={item.label} style={{display:'flex', gap:'16px', alignItems:'center'}}>
+                  <div style={{flex:1}}>
+                    <p style={{margin:'0 0 4px', fontSize:'13px', color:'#ccc'}}>{item.label}</p>
+                    <div style={{background:'rgba(255,255,255,0.1)', borderRadius:'999px', height:'6px'}}>
+                      <div style={{width:`${Math.min(item.current/item.target*100,100)}%`, background:item.color, height:'6px', borderRadius:'999px'}}/>
+                    </div>
+                  </div>
+                  <p style={{margin:0, fontSize:'14px', fontWeight:'700', color:'#fff', minWidth:'70px', textAlign:'right'}}>
+                    {typeof item.current==='number'&&item.current>1000?item.current.toLocaleString():item.current} now
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div style={S.impactBox}>
+              <p style={S.impactText}>
+                Already reaching {parseInt(data.schools.learners||0).toLocaleString()} learners across {data.schools.total} schools
+                with only 3 counties active. Full funding unlocks national scale — Kenya's largest
+                rural coding programme by Year 5.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── MAP + GROWTH CHART ────────────────────────────────────────── */}
+        <div style={S.row}>
+          <div style={{flex:1.3, borderRadius:'12px', overflow:'hidden', position:'relative', minHeight:'380px', background:'#1a2332'}}>
+            <div style={{position:'absolute', top:'12px', left:'12px', zIndex:1000, background:'rgba(26,35,50,0.92)', borderRadius:'8px', padding:'10px 14px', backdropFilter:'blur(4px)'}}>
+              <p style={{margin:'0 0 4px', fontSize:'13px', fontWeight:'700', color:'#fff'}}>🗺️ Geographic Reach</p>
+              <p style={{margin:'0 0 8px', fontSize:'11px', color:'rgba(255,255,255,0.6)'}}>
+                {schools.filter(s=>s.status==='active').length} active · {schools.length} schools mapped
+              </p>
+              <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
+                {[{color:BRAND.green,label:'Active'},{color:BRAND.orange,label:'Not started'},{color:BRAND.blue,label:'Centre'}].map(l=>(
+                  <div key={l.label} style={{display:'flex', alignItems:'center', gap:'4px'}}>
+                    <div style={{width:'8px', height:'8px', borderRadius:'50%', background:l.color}}/>
+                    <span style={{fontSize:'10px', color:'rgba(255,255,255,0.7)'}}>{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div ref={mapRef} style={{width:'100%', height:'380px'}}/>
+          </div>
+
+          <div style={{...S.card, flex:1}}>
+            <p style={S.cardTitle}>📈 Programme Growth</p>
+            <p style={S.cardSub}>Cumulative schools enrolled over time</p>
+            {growthChartData.length > 0 ? (
+              <div style={{marginTop:'20px'}}>
+                <ResponsiveContainer width="100%" height={270}>
+                  <AreaChart data={growthChartData} margin={{top:5,right:10,left:0,bottom:5}}>
+                    <defs>
+                      <linearGradient id="schoolGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor={BRAND.green} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={BRAND.green} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)"/>
+                    <XAxis dataKey="month" tick={{fontSize:10, fill:'#8a96a3'}}/>
+                    <YAxis tick={{fontSize:10, fill:'#8a96a3'}}/>
+                    <Tooltip content={<CustomTooltip />}/>
+                    <Area type="monotone" dataKey="Schools" name="Total Schools" stroke={BRAND.green} strokeWidth={2} fill="url(#schoolGrad)"/>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div style={{marginTop:'20px', textAlign:'center', padding:'60px 0', color:'rgba(255,255,255,0.4)'}}>
+                <p style={{fontSize:'32px', margin:'0 0 8px'}}>📊</p>
+                <p style={{fontSize:'13px', margin:0}}>Growth data appears as schools are added over time</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── DEVICE AUDIT SUMMARY ─────────────────────────────────────── */}
+        <div style={S.whiteCard}>
+          <p style={S.wCardTitle}>💻 Device Infrastructure — Across All Coding Clubs</p>
+          <p style={{fontSize:'12px', color:'#8a96a3', margin:'0 0 20px'}}>
+            Device inventory across {new Set(devices.map(d=>d.school_name||d.school_name_snapshot)).size} schools and centres · {devices.length} audit records
+          </p>
+
+          {/* 4 stat cards */}
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'24px'}}>
+            {[
+              { label:'Total Devices',    value:totalDevices.toLocaleString(), sub:'across all clubs',        color:BRAND.blue,   icon:'💻' },
+              { label:'Functioning',      value:totalFunctioning.toLocaleString(), sub:`${funcRate}% working`, color:BRAND.green,  icon:'✅' },
+              { label:'Faulty',           value:totalFaulty.toLocaleString(), sub:'need repair/replacement',  color:BRAND.red,    icon:'⚠️' },
+              { label:'Clubs Audited',    value:new Set(devices.map(d=>d.school_name||d.school_name_snapshot)).size, sub:'schools & centres', color:BRAND.orange, icon:'🏫' },
+            ].map(c=>(
+              <div key={c.label} style={{background:'#f8f9fa', borderRadius:'10px', padding:'20px', textAlign:'center', borderTop:`4px solid ${c.color}`}}>
+                <p style={{fontSize:'28px', margin:'0 0 6px'}}>{c.icon}</p>
+                <p style={{fontSize:'28px', fontWeight:'800', color:c.color, margin:'0 0 4px'}}>{c.value}</p>
+                <p style={{fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px'}}>{c.label}</p>
+                <p style={{fontSize:'11px', color:'#8a96a3', margin:0}}>{c.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Overall health bar */}
+          <div style={{background:'#f8f9fa', borderRadius:'10px', padding:'16px 20px', marginBottom:'20px'}}>
+            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'8px'}}>
+              <span style={{fontSize:'14px', fontWeight:'600', color:'#1a2332'}}>Overall device health</span>
+              <span style={{fontSize:'14px', fontWeight:'700', color:funcRate>=75?BRAND.green:funcRate>=50?BRAND.orange:BRAND.red}}>{funcRate}% functioning</span>
+            </div>
+            <div style={{background:'#e2e8f0', borderRadius:'999px', height:'12px'}}>
+              <div style={{width:`${funcRate}%`, background:funcRate>=75?BRAND.green:funcRate>=50?BRAND.orange:BRAND.red, height:'12px', borderRadius:'999px', transition:'width 0.8s'}}/>
+            </div>
+          </div>
+
+          {/* Device type breakdown */}
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px'}}>
+            {deviceTypeStats.map(d => {
+              const rate = d.total ? Math.round((d.functioning/d.total)*100) : 0;
+              const color = rate>=75?BRAND.green:rate>=50?BRAND.orange:BRAND.red;
+              return (
+                <div key={d.type} style={{background:'#f8f9fa', borderRadius:'10px', padding:'16px'}}>
+                  <p style={{fontSize:'14px', fontWeight:'700', color:'#1a2332', margin:'0 0 8px'}}>{d.type}</p>
+                  <p style={{fontSize:'22px', fontWeight:'800', color:'#1a2332', margin:'0 0 4px'}}>{d.total}</p>
+                  <p style={{fontSize:'12px', color:'#8a96a3', margin:'0 0 10px'}}>{d.functioning} functioning · {d.faulty} faulty</p>
+                  <div style={{background:'#e2e8f0', borderRadius:'999px', height:'6px'}}>
+                    <div style={{width:`${rate}%`, background:color, height:'6px', borderRadius:'999px'}}/>
+                  </div>
+                  <p style={{fontSize:'11px', color, fontWeight:'600', margin:'4px 0 0', textAlign:'right'}}>{rate}%</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── IMPACT STORIES ───────────────────────────────────────────── */}
+        <div style={S.whiteCard}>
+          <p style={S.wCardTitle}>💬 Voices from the Field</p>
+          <p style={{fontSize:'12px', color:'#8a96a3', margin:'0 0 20px'}}>Real impact from educators, parents and community members</p>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'16px'}}>
+            {IMPACT_STORIES.map((story,i) => (
+              <div key={i} style={{...S.storyCard, borderTop:`4px solid ${story.color}`}}>
+                <p style={S.storyQuote}>"{story.quote}"</p>
+                <div style={S.storyAuthor}>
+                  <div style={{...S.storyAvatar, background:story.color}}>
+                    {story.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+                  </div>
+                  <div>
+                    <p style={S.storyName}>{story.name}</p>
+                    <p style={S.storyRole}>{story.role} · {story.county}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── COUNTY BREAKDOWN ─────────────────────────────────────────── */}
+        <div style={S.whiteCard}>
+          <p style={S.wCardTitle}>Schools & Learners by County</p>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'16px', marginTop:'16px'}}>
+            {data.counties.map(county => (
+              <div key={county.county} style={{...S.countyCard, borderTop:`4px solid ${COUNTY_COLORS[county.county]||'#888'}`}}>
+                <p style={{fontSize:'18px', fontWeight:'700', margin:'0 0 16px', color:COUNTY_COLORS[county.county]}}>{county.county}</p>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'8px', marginBottom:'12px'}}>
+                  {[{label:'Schools',value:county.schools},{label:'Active',value:county.active},{label:'Learners',value:parseInt(county.learners||0).toLocaleString()}].map(s=>(
+                    <div key={s.label} style={{textAlign:'center'}}>
+                      <p style={{margin:0, fontSize:'20px', fontWeight:'700', color:'#1a2332'}}>{s.value}</p>
+                      <p style={{margin:0, fontSize:'11px', color:'#8a96a3'}}>{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div style={{background:'#f0f0f0', borderRadius:'999px', height:'8px'}}>
+                  <div style={{width:`${Math.round(county.active/Math.max(county.schools,1)*100)}%`, background:COUNTY_COLORS[county.county]||'#888', height:'8px', borderRadius:'999px'}}/>
+                </div>
+                <p style={{margin:'6px 0 0', fontSize:'11px', color:'#8a96a3', textAlign:'right'}}>
+                  {Math.round(county.active/Math.max(county.schools,1)*100)}% active
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── KEY ACHIEVEMENTS ─────────────────────────────────────────── */}
+        <div style={S.whiteCard}>
+          <p style={S.wCardTitle}>Key Programme Achievements</p>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginTop:'16px'}}>
+            {[
+              {icon:'🏫', value:parseInt(data.schools.active||0)+parseInt(data.schools.centres||0), label:'Active Coding Clubs',  sub:'schools + community centres', color:BRAND.green},
+              {icon:'👩‍🏫', value:data.teachers.total,    label:'Trained Educators',    sub:'club leaders & teachers',  color:BRAND.blue},
+              {icon:'👤', value:data.mentors.active,      label:'Active Youth Mentors', sub:'supporting coding clubs',  color:BRAND.orange},
+              {icon:'🌍', value:data.schools.counties||3, label:'Counties Covered',     sub:'Kiambu · Kajiado · Murang\'a', color:BRAND.purple},
+            ].map(item=>(
+              <div key={item.label} style={{background:'#f8f9fa', borderRadius:'10px', padding:'20px', textAlign:'center', borderTop:`4px solid ${item.color}`}}>
+                <p style={{fontSize:'32px', margin:'0 0 8px'}}>{item.icon}</p>
+                <p style={{fontSize:'32px', fontWeight:'800', color:item.color, margin:'0 0 4px'}}>{item.value}</p>
+                <p style={{fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px'}}>{item.label}</p>
+                <p style={{fontSize:'11px', color:'#8a96a3', margin:0}}>{item.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── CTA ───────────────────────────────────────────────────────── */}
+        <div style={S.ctaBanner}>
+          <div>
+            <p style={S.ctaTitle}>Ready to scale Code Club Kenya nationally?</p>
+            <p style={S.ctaSub}>{parseInt(data.schools.active||0)+parseInt(data.schools.centres||0)} active coding clubs · {parseInt(data.schools.learners||0).toLocaleString()} learners · 3 counties · growing</p>
+          </div>
+          <div style={{display:'flex', gap:'12px', flexShrink:0}}>
+            <a href="mailto:info@empserve.org" style={S.ctaBtn}>📧 Contact EmpServe</a>
+            <a href="https://www.raspberrypi.org/foundation/" target="_blank" rel="noreferrer"
+              style={{...S.ctaBtn, background:'rgba(255,255,255,0.15)', color:'#fff', border:'1px solid rgba(255,255,255,0.3)'}}>
+              🌐 RPF Website
+            </a>
+          </div>
+        </div>
+
       </div>
-
-      {/* Table */}
-      <div style={styles.tableCard}>
-        <div style={styles.tableHeader}>
-          <p style={styles.tableTitle}>Ecosystem builders directory — RPF 2026</p>
-          <p style={styles.tableSub}>{filtered.length} of {allBuilders.length} people · live database · click badges to toggle status</p>
-        </div>
-        {loading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
-          <table style={styles.table}>
-            <thead>
-              <tr style={styles.thead}>
-                <th style={styles.th}>NAME</th>
-                <th style={styles.th}>ROLE</th>
-                <th style={styles.th}>SCHOOL / CENTRE</th>
-                <th style={styles.th}>COUNTY</th>
-                <th style={styles.th}>TRAINING</th>
-                <th style={styles.th}>SAFEGUARDING</th>
-                <th style={styles.th}>SURVEY</th>
-                <th style={styles.th}>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((b, i) => {
-                const roleInfo = ROLE_LABELS[b.role] || { label:b.role, color:'#888', bg:'#f0f0f0' };
-                const isAdditional = b._source === 'teacher';
-                return (
-                  <tr key={`${b._source}-${b.id}`} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
-                    <td style={{...styles.td, fontWeight:'500', color:'#1a2332'}}>{b.full_name}</td>
-                    <td style={styles.td}>
-                      <span style={{...styles.roleBadge, background:roleInfo.bg, color:roleInfo.color}}>
-                        {roleInfo.label}
-                      </span>
-                    </td>
-                    <td style={styles.td}>{b.school_name||'—'}</td>
-                    <td style={styles.td}>
-                      {b.county ? (
-                        <span style={{...styles.countyBadge,
-                          background:(COUNTY_COLORS[b.county]||'#888')+'20',
-                          color:COUNTY_COLORS[b.county]||'#888'}}>
-                          {b.county}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td style={styles.td}>
-                      <ToggleBtn item={b} field="training_completed"
-                        yesLabel="✅ Done" noLabel="⏳ Pending" noColor="#a0720a" noBg="#fef9e7" />
-                    </td>
-                    <td style={styles.td}>
-                      <ToggleBtn item={b} field="safeguarding_done"
-                        yesLabel="✅ Done" noLabel="❌ Not done" />
-                    </td>
-                    <td style={styles.td}>
-                      <ToggleBtn item={b} field="survey_done"
-                        yesLabel="✅ Done" noLabel="⏳ Pending" noColor="#a0720a" noBg="#fef9e7" />
-                    </td>
-                    <td style={styles.td}>
-                      {isAdditional ? (
-                        <span style={{fontSize:'11px', color:'#8e44ad', fontWeight:'600'}}>
-                          ✏️ Edit in Teachers tab
-                        </span>
-                      ) : (
-                        <div style={{display:'flex', gap:'6px'}}>
-                          <button style={styles.editBtn} onClick={()=>openEdit(b)}>✏️ Edit</button>
-                          <button style={styles.deleteBtn} onClick={()=>setDeleteConfirm(b)}>🗑️</button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{padding:'40px', textAlign:'center', color:'#888'}}>
-                  No records match your filters.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* HOS / Centre Manager Modal */}
-      {showModal === 'hos' && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>
-              {editingItem ? '✏️ Edit' : '+'} {hosForm.role === 'centre_manager' ? 'Centre Manager' : 'Head of School'}
-            </h3>
-            <div style={styles.formGrid}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Full Name *</label>
-                <input style={styles.input} value={hosForm.full_name}
-                  onChange={e=>setHosForm({...hosForm,full_name:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Role</label>
-                <select style={styles.input} value={hosForm.role}
-                  onChange={e=>setHosForm({...hosForm,role:e.target.value})}>
-                  <option value="head_of_school">🏫 Head of School</option>
-                  <option value="centre_manager">🏢 Centre Manager</option>
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>School / Community Centre</label>
-                <select style={styles.input} value={hosForm.school_id}
-                  onChange={e=>setHosForm({...hosForm,school_id:e.target.value})}>
-                  <option value="">— Select —</option>
-                  {schools.map(s=><option key={s.id} value={s.id}>{s.official_name} ({s.club_id})</option>)}
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>County</label>
-                <select style={styles.input} value={hosForm.county||''}
-                  onChange={e=>setHosForm({...hosForm,county:e.target.value})}>
-                  <option value="">— Select County —</option>
-                  {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Phone</label>
-                <input style={styles.input} value={hosForm.phone}
-                  onChange={e=>setHosForm({...hosForm,phone:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Email</label>
-                <input style={styles.input} type="email" value={hosForm.email}
-                  onChange={e=>setHosForm({...hosForm,email:e.target.value})} />
-              </div>
-            </div>
-            <div style={styles.checkboxRow}>
-              <CheckRow label="✅ Training Completed" checked={hosForm.training_completed}
-                onChange={v=>setHosForm({...hosForm,training_completed:v})} />
-              <CheckRow label="🛡️ Safeguarding Done" checked={hosForm.safeguarding_done}
-                onChange={v=>setHosForm({...hosForm,safeguarding_done:v})} />
-              <CheckRow label="📝 Survey Done" checked={hosForm.survey_done||false}
-                onChange={v=>setHosForm({...hosForm,survey_done:v})} />
-            </div>
-            <div style={styles.modalActions}>
-              <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
-              <button style={styles.saveBtn} onClick={handleSaveHos} disabled={saving}>
-                {saving?'Saving...':editingItem?'Save Changes':'Add Person'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ICT / Director Modal */}
-      {showModal === 'extra' && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h3 style={styles.modalTitle}>
-              {editingItem ? '✏️ Edit Person' : '+ Add ICT Intern / Sub-County Director'}
-            </h3>
-            <div style={styles.formGrid}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Full Name *</label>
-                <input style={styles.input} value={extraForm.full_name}
-                  onChange={e=>setExtraForm({...extraForm,full_name:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Role</label>
-                <select style={styles.input} value={extraForm.role}
-                  onChange={e=>setExtraForm({...extraForm,role:e.target.value})}>
-                  <option value="ict_intern">💻 ICT Intern (CDE)</option>
-                  <option value="subcounty_director">📋 Sub-County Director</option>
-                  <option value="centre_manager">🏢 Centre Manager</option>
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Phone</label>
-                <input style={styles.input} value={extraForm.phone}
-                  onChange={e=>setExtraForm({...extraForm,phone:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Email</label>
-                <input style={styles.input} type="email" value={extraForm.email}
-                  onChange={e=>setExtraForm({...extraForm,email:e.target.value})} />
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>County</label>
-                <select style={styles.input} value={extraForm.county}
-                  onChange={e=>setExtraForm({...extraForm,county:e.target.value})}>
-                  <option value="">— Select County —</option>
-                  {KENYA_COUNTIES.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Subcounty / Area</label>
-                <input style={styles.input} value={extraForm.subcounty_area}
-                  onChange={e=>setExtraForm({...extraForm,subcounty_area:e.target.value})} />
-              </div>
-            </div>
-            <div style={styles.checkboxRow}>
-              <CheckRow label="✅ Training Completed" checked={extraForm.training_completed}
-                onChange={v=>setExtraForm({...extraForm,training_completed:v})} />
-              <CheckRow label="🛡️ Safeguarding Done" checked={extraForm.safeguarding_done}
-                onChange={v=>setExtraForm({...extraForm,safeguarding_done:v})} />
-              <CheckRow label="📝 Survey Done" checked={extraForm.survey_done}
-                onChange={v=>setExtraForm({...extraForm,survey_done:v})} />
-            </div>
-            <div style={styles.modalActions}>
-              <button style={styles.cancelBtn} onClick={()=>setShowModal(null)}>Cancel</button>
-              <button style={styles.saveBtn} onClick={handleSaveExtra} disabled={saving}>
-                {saving?'Saving...':editingItem?'Save Changes':'Add Person'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirm */}
-      {deleteConfirm && (
-        <div style={styles.overlay}>
-          <div style={{...styles.modal, maxWidth:'400px'}}>
-            <h3 style={{color:'#e74c3c',margin:'0 0 12px'}}>⚠️ Delete Person</h3>
-            <p style={{color:'#555',margin:'0 0 20px'}}>
-              Delete <strong>{deleteConfirm.full_name}</strong>? This cannot be undone.
-            </p>
-            <div style={styles.modalActions}>
-              <button style={styles.cancelBtn} onClick={()=>setDeleteConfirm(null)}>Cancel</button>
-              <button style={{...styles.saveBtn,background:'#e74c3c'}} onClick={handleDelete}>Yes, Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 }
 
-const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'14px', marginBottom:'20px' },
-  card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
-  cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
-  cardValue: { fontSize:'32px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
-  cardSub: { fontSize:'11px', margin:0, fontWeight:'500' },
-  filterBar: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', gap:'12px', flexWrap:'wrap' },
-  filters: { display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center' },
-  search: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', color:'#333', background:'#fff', outline:'none', minWidth:'180px' },
-  select: { padding:'8px 10px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'12px', color:'#333', background:'#fff', cursor:'pointer' },
-  clearBtn: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
-  actions: { display:'flex', gap:'8px', flexWrap:'wrap' },
-  exportBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#555' },
-  hosBtn: { padding:'8px 14px', borderRadius:'8px', border:'none', background:'#8e44ad', color:'#fff', fontSize:'12px', fontWeight:'600', cursor:'pointer' },
-  addBtn: { padding:'8px 14px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'12px', fontWeight:'600', cursor:'pointer' },
-  tableCard: { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflow:'hidden' },
-  tableHeader: { padding:'20px 24px', borderBottom:'1px solid #f0f0f0' },
-  tableTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
-  tableSub: { fontSize:'12px', color:'#8a96a3', margin:0 },
-  table: { width:'100%', borderCollapse:'collapse' },
-  thead: { background:'#f8f9fa' },
-  th: { padding:'10px 16px', textAlign:'left', fontSize:'11px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', borderBottom:'2px solid #f0f0f0', whiteSpace:'nowrap' },
-  td: { padding:'10px 16px', fontSize:'13px', color:'#4a5568' },
-  roleBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600', whiteSpace:'nowrap' },
-  countyBadge: { padding:'3px 10px', borderRadius:'999px', fontSize:'12px', fontWeight:'600' },
-  checkBadge: { padding:'3px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'600', whiteSpace:'nowrap' },
-  editBtn: { padding:'4px 10px', borderRadius:'6px', border:'1.5px solid #69A9C9', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#69A9C9' },
-  deleteBtn: { padding:'4px 8px', borderRadius:'6px', border:'1.5px solid #e74c3c', background:'#fff', fontSize:'12px', cursor:'pointer', color:'#e74c3c' },
-  overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
-  modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'600px', maxHeight:'85vh', overflowY:'auto' },
-  modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
-  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'16px' },
-  formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
-  label: { fontSize:'12px', fontWeight:'600', color:'#555' },
-  input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },
-  checkboxRow: { display:'flex', gap:'24px', flexWrap:'wrap', padding:'12px 0', borderTop:'1px solid #f0f0f0', marginBottom:'16px' },
-  checkLabel: { fontSize:'13px', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' },
-  modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
-  cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
-  saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#8e44ad', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
+const S = {
+  shareBtn: { padding:'8px 18px', borderRadius:'8px', border:'1.5px solid #69A9C9', background:'#fff', color:'#69A9C9', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
+  pdfBtn: { padding:'8px 18px', borderRadius:'8px', border:'none', background:'#1eb457', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
+  hero: { background:'linear-gradient(135deg, #1a2332 0%, #2c3e50 60%, #1a3a4a 100%)', borderRadius:'16px', padding:'36px', marginBottom:'20px', display:'flex', gap:'32px', alignItems:'center' },
+  heroLeft: { flex:1 },
+  heroTag: { fontSize:'10px', fontWeight:'700', color:'#69A9C9', letterSpacing:'1px', margin:'0 0 12px' },
+  heroTitle: { fontSize:'36px', fontWeight:'800', color:'#fff', margin:'0 0 4px' },
+  heroSub: { fontSize:'20px', fontWeight:'400', color:'#F7941D', margin:'0 0 8px' },
+  heroDesc: { fontSize:'13px', color:'rgba(255,255,255,0.6)', margin:'0 0 4px' },
+  heroStat: { textAlign:'center', background:'rgba(255,255,255,0.06)', borderRadius:'10px', padding:'12px 8px' },
+  heroStatValue: { fontSize:'20px', fontWeight:'700', color:'#fff', margin:'0 0 4px' },
+  heroStatLabel: { fontSize:'10px', color:'rgba(255,255,255,0.5)', margin:0, lineHeight:1.3 },
+  heroRight: { flexShrink:0 },
+  heroCircle: { width:'160px', height:'160px', borderRadius:'50%', background:'rgba(105,169,201,0.15)', border:'3px solid #69A9C9', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center' },
+  heroCircleValue: { fontSize:'28px', fontWeight:'800', color:'#fff', margin:'0 0 4px' },
+  heroCircleLabel: { fontSize:'12px', color:'#69A9C9', margin:0 },
+  highlightCard: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', textAlign:'center' },
+  highlightIcon: { fontSize:'28px', margin:'0 0 8px' },
+  highlightValue: { fontSize:'32px', fontWeight:'800', color:'#1a2332', margin:'0 0 4px' },
+  highlightLabel: { fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px' },
+  highlightSub: { fontSize:'11px', color:'#8a96a3', margin:0 },
+  row: { display:'flex', gap:'20px', marginBottom:'20px' },
+  card: { background:'linear-gradient(135deg, #1a2332 0%, #2c3e50 100%)', borderRadius:'12px', padding:'24px' },
+  cardTitle: { fontSize:'16px', fontWeight:'700', color:'#fff', margin:'0 0 4px' },
+  cardSub: { fontSize:'12px', color:'rgba(255,255,255,0.5)', margin:0 },
+  impactBox: { marginTop:'20px', background:'rgba(247,148,29,0.1)', borderRadius:'8px', padding:'14px', border:'1px solid rgba(247,148,29,0.3)' },
+  impactText: { fontSize:'12px', color:'rgba(255,255,255,0.7)', margin:0, lineHeight:1.6 },
+  whiteCard: { background:'#fff', borderRadius:'12px', padding:'24px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', marginBottom:'20px' },
+  wCardTitle: { fontSize:'16px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px' },
+  storyCard: { background:'#f8f9fa', borderRadius:'10px', padding:'20px', display:'flex', flexDirection:'column' },
+  storyQuote: { fontSize:'13px', color:'#444', lineHeight:1.7, fontStyle:'italic', margin:'0 0 16px', flex:1 },
+  storyAuthor: { display:'flex', gap:'12px', alignItems:'center' },
+  storyAvatar: { width:'36px', height:'36px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', fontWeight:'700', color:'#fff', flexShrink:0 },
+  storyName: { fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 2px' },
+  storyRole: { fontSize:'11px', color:'#8a96a3', margin:0 },
+  countyCard: { background:'#f8f9fa', borderRadius:'10px', padding:'20px' },
+  ctaBanner: { background:'linear-gradient(135deg, #1eb457 0%, #159a48 100%)', borderRadius:'12px', padding:'28px 32px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'20px', marginBottom:'20px' },
+  ctaTitle: { fontSize:'18px', fontWeight:'700', color:'#fff', margin:'0 0 6px' },
+  ctaSub: { fontSize:'13px', color:'rgba(255,255,255,0.8)', margin:0 },
+  ctaBtn: { padding:'10px 20px', borderRadius:'8px', background:'#fff', color:'#1eb457', fontSize:'13px', fontWeight:'700', textDecoration:'none', display:'inline-block' },
 };

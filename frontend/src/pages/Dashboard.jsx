@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { getSchools, getMentors } from '../api/index';
 import Layout from '../components/Layout';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const AVATAR_COLORS = ['#1eb457','#F7941D','#69A9C9','#9b59b6','#e74c3c','#1abc9c','#f39c12','#2980b9'];
 function getInitials(name) { return name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase(); }
@@ -39,6 +40,7 @@ function DonutChart({ active, notStarted }) {
 }
 
 export default function Dashboard() {
+  const isMobile = useIsMobile();
   const [schools, setSchools] = useState([]);
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export default function Dashboard() {
       </div>
 
       {/* Middle row */}
-      <div style={styles.row}>
+      <div style={{...styles.row, flexDirection: isMobile ? 'column' : 'row'}}>
         {/* County bars */}
         <div style={{...styles.section, flex:2}}>
           <p style={styles.sectionTitle}>Schools & clubs by county</p>
@@ -179,7 +181,7 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom row */}
-      <div style={styles.row}>
+      <div style={{...styles.row, flexDirection: isMobile ? 'column' : 'row'}}>
         {/* Schools needing attention */}
         <div style={{...styles.section, flex:1.2}}>
           <p style={styles.sectionTitle}>🚩 Schools needing attention</p>
@@ -226,7 +228,7 @@ export default function Dashboard() {
 const styles = {
   pills: { display:'flex', gap:'8px', flexWrap:'wrap', marginBottom:'24px' },
   pill: { background:'#fff', border:'1px solid #e8e8e8', borderRadius:'999px', padding:'5px 12px', fontSize:'12px', color:'#555' },
-  cards: { display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'16px', marginBottom:'24px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'24px' },
   card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#888', letterSpacing:'0.5px', margin:'0 0 8px 0' },
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a1a2e', margin:'0 0 4px 0' },

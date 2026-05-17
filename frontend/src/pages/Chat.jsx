@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(cfg => {
@@ -34,6 +35,7 @@ function timeAgo(dateStr) {
 }
 
 export default function Chat() {
+  const isMobile = useIsMobile();
   const [view, setView]               = useState('lobby'); // 'lobby' | 'room'
   const [selectedCounty, setSelectedCounty] = useState('');
   const [selectedSub, setSelectedSub] = useState('');
@@ -120,6 +122,8 @@ export default function Chat() {
     try {
       const payload = {
         message: text.trim(),
+        county: selectedCounty,
+        subcounty: selectedSub,
         attachment_url:  attachment?.url  || null,
         attachment_name: attachment?.name || null,
         attachment_type: attachment?.type || null,
@@ -374,7 +378,7 @@ const S = {
   notif: { position:'fixed', top:'20px', right:'20px', background:'#1a2332', color:'#fff', padding:'12px 20px', borderRadius:'10px', fontSize:'13px', fontWeight:'600', zIndex:9999, boxShadow:'0 4px 16px rgba(0,0,0,0.2)', maxWidth:'320px' },
   roomHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fff', borderRadius:'12px', padding:'16px 20px', marginBottom:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', flexWrap:'wrap', gap:'12px' },
   backBtn: { padding:'8px 16px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555', fontWeight:'500' },
-  messagesBox: { background:'#fff', borderRadius:'12px', padding:'20px', minHeight:'400px', maxHeight:'55vh', overflowY:'auto', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', marginBottom:'12px' },
+  messagesBox: { background:'#fff', borderRadius:'12px', padding:'20px', minHeight:'300px', maxHeight:'calc(100vh - 300px)', overflowY:'auto', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', marginBottom:'12px' },
   msgRow: { display:'flex', alignItems:'flex-end', gap:'8px' },
   avatar: { width:'36px', height:'36px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', fontWeight:'700', color:'#fff' },
   bubble: { padding:'10px 14px', boxShadow:'0 1px 4px rgba(0,0,0,0.08)' },

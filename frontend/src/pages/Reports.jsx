@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 import {
   exportProgrammeSummaryPDF,
   exportCountyPDF,
@@ -58,6 +59,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function Reports() {
+  const isMobile = useIsMobile();
   const [activeReport, setActiveReport] = useState('summary');
   const [data, setData]                 = useState(null);
   const [deviceData, setDeviceData]     = useState(null);
@@ -350,7 +352,7 @@ export default function Reports() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'16px',marginTop:'16px'}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:'16px',marginTop:'16px'}}>
                   {data.map(county=>(
                     <div key={county.county} style={{...styles.countyCard, borderTop:`4px solid ${COUNTY_COLORS[county.county]||'#888'}`}}>
                       <p style={{...styles.countyName, color:COUNTY_COLORS[county.county]}}>{county.county}</p>
@@ -559,7 +561,7 @@ export default function Reports() {
             {activeReport==='device-audit' && (
               <div>
                 {/* Summary stat cards */}
-                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'16px',marginBottom:'24px'}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:'16px',marginBottom:'24px'}}>
                   {[
                     { label:'TOTAL DEVICES',    value:totalDevices,     sub:'across all clubs',        color:BRAND.blue },
                     { label:'FUNCTIONING',      value:totalFunctioning, sub:`${funcRate}% working`,    color:BRAND.green },
@@ -678,7 +680,7 @@ export default function Reports() {
 }
 
 const styles = {
-  reportGrid: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', marginBottom:'20px' },
+  reportGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'20px' },
   reportCard: { borderRadius:'10px', padding:'16px', transition:'all 0.15s' },
   reportLabel: { fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   reportDesc: { fontSize:'11px', color:'#8a96a3', margin:0 },
@@ -692,7 +694,7 @@ const styles = {
   chartRow: { display:'flex', gap:'16px', marginBottom:'16px', flexWrap:'wrap' },
   chartBox: { background:'#f8f9fa', borderRadius:'12px', padding:'16px 20px', flex:1, minWidth:'240px' },
   chartTitle: { fontSize:'13px', fontWeight:'600', color:'#1a2332', margin:'0 0 12px 0' },
-  summaryGrid: { display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'12px', marginBottom:'20px' },
+  summaryGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'20px' },
   summaryCard: { background:'#f8f9fa', borderRadius:'10px', padding:'16px' },
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
   cardValue: { fontSize:'28px', fontWeight:'700', margin:'0 0 2px 0' },
@@ -700,7 +702,7 @@ const styles = {
   metricRow: { display:'flex', alignItems:'center', gap:'12px', marginBottom:'12px' },
   countyCard: { background:'#f8f9fa', borderRadius:'10px', padding:'20px' },
   countyName: { fontSize:'18px', fontWeight:'700', margin:'0 0 16px 0' },
-  countyStats: { display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'16px' },
+  countyStats: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(80px, 1fr))', gap:'8px', marginBottom:'16px' },
   countyStat: { textAlign:'center' },
   countyStatValue: { fontSize:'20px', fontWeight:'700', color:'#1a2332', margin:'0 0 2px 0' },
   countyStatLabel: { fontSize:'11px', color:'#8a96a3', margin:0 },

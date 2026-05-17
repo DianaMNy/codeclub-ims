@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -33,6 +34,7 @@ const EMPTY_FORM = {
 };
 
 export default function Teachers() {
+  const isMobile = useIsMobile();
   const [teachers, setTeachers] = useState([]);
   const [schools, setSchools]   = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -525,7 +527,7 @@ export default function Teachers() {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'10px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'10px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'14px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px 0' },
   cardValue: { fontSize:'28px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
@@ -538,7 +540,7 @@ const styles = {
   actions: { display:'flex', gap:'10px' },
   exportBtn: { padding:'8px 14px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
   addBtn: { padding:'8px 16px', borderRadius:'8px', border:'none', background:'#2980b9', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },
-  tableCard: { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflow:'auto' },
+  tableCard: { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflowX:'auto' },
   tableHeader: { padding:'20px 24px', borderBottom:'1px solid #f0f0f0' },
   tableTitle: { fontSize:'15px', fontWeight:'600', color:'#1a2332', margin:'0 0 4px 0' },
   tableSub: { fontSize:'12px', color:'#8a96a3', margin:0 },
@@ -560,7 +562,7 @@ const styles = {
   sectionLabel: { fontSize:'13px', fontWeight:'700', color:'#1a2332', margin:'16px 0 12px', paddingBottom:'6px', borderBottom:'2px solid #f0f0f0' },
   checkboxRow: { display:'flex', gap:'24px', flexWrap:'wrap', marginBottom:'8px' },
   checkLabel: { fontSize:'13px', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' },
-  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'16px' },
+  formGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'16px', marginBottom:'16px' },
   formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },

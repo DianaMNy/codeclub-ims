@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -61,6 +62,7 @@ function getColor(name) { let s=0; for(let c of (name||'')) s+=c.charCodeAt(0); 
 const EMPTY_FORM = { full_name:'', email:'', password:'', role:'mentor', linked_id:'' };
 
 export default function UserManagement() {
+  const isMobile = useIsMobile();
   const [users, setUsers]           = useState([]);
   const [mentors, setMentors]       = useState([]);
   const [teachers, setTeachers]     = useState([]);
@@ -417,7 +419,7 @@ export default function UserManagement() {
 const styles = {
   tabs: { display:'flex', marginBottom:'20px', borderBottom:'1px solid #e2e8f0' },
   tab: { padding:'10px 20px', background:'none', border:'none', cursor:'pointer', fontSize:'14px', transition:'all 0.15s' },
-  cards: { display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'12px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'12px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'9px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 6px' },
   cardValue: { fontSize:'28px', fontWeight:'700', margin:0 },

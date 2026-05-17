@@ -3,6 +3,7 @@ import { getSchools, getMentors } from '../api/index';
 import axios from 'axios';
 import Layout from '../components/Layout';
 import { useEffect, useState, useCallback } from 'react';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -39,6 +40,7 @@ const EMPTY_FORM = {
 };
 
 export default function Schools() {
+  const isMobile = useIsMobile();
   const [schools, setSchools] = useState([]);
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -286,7 +288,7 @@ const handleSave = async () => {
           <p style={styles.tableSub}>{filtered.length} of {schools.length} records · {centres} community centres · live database</p>
         </div>
         {loading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
-          <table style={styles.table}>
+          <div style={{overflowX:'auto'}}><table style={{...styles.table, minWidth:'700px'}}>
             <thead>
               <tr style={styles.thead}>
                 <SortTh label="ID" sortK="club_id" />
@@ -334,7 +336,7 @@ const handleSave = async () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -347,7 +349,7 @@ const handleSave = async () => {
             {/* Section: Basic Info */}
           {/* Section: Basic Info */}
 <p style={styles.sectionLabel}>📋 Basic Information</p>
-<div style={styles.formGrid}>
+<div style={{...styles.formGrid, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr'}}>
   <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Club ID" fieldKey="club_id" />
   <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Official Name" fieldKey="official_name" />
   <Field form={form} setForm={setForm} formErrors={formErrors} setFormErrors={setFormErrors} label="Subcounty / Area" fieldKey="subcounty_area" />
@@ -425,7 +427,7 @@ const handleSave = async () => {
           
 {/* Section: Club Leader */}
 <p style={styles.sectionLabel}>⭐ Club Leader</p>
-<div style={{...styles.formGrid, marginBottom:'24px'}}>
+<div style={{...styles.formGrid, marginBottom:'24px', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr'}}>
   {editingSchool ? (
     <>
       <div style={styles.formGroup}>
@@ -471,7 +473,7 @@ const handleSave = async () => {
 <p style={styles.sectionLabel}>
   {form.type === 'school' ? '🏫 Head of School (Safeguarding Sponsor)' : '🏢 Centre Manager (Safeguarding Sponsor)'}
 </p>
-<div style={styles.formGrid}>
+<div style={{...styles.formGrid, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr'}}>
   <div style={{...styles.formGroup, gridColumn:'1/-1'}}>
     <label style={styles.label}>
   {form.type === 'school' ? 'Select Head of School' : 'Select Centre Manager'}
@@ -541,7 +543,7 @@ const handleSave = async () => {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'16px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
@@ -574,7 +576,7 @@ const styles = {
   formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
   formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
-  input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },
+  input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'16px', outline:'none', minHeight:'44px' },
   modalActions: { display:'flex', justifyContent:'flex-end', gap:'12px' },
   cancelBtn: { padding:'10px 20px', borderRadius:'8px', border:'1.5px solid #e2e8f0', background:'#fff', fontSize:'13px', cursor:'pointer', color:'#555' },
   saveBtn: { padding:'10px 24px', borderRadius:'8px', border:'none', background:'#F7941D', color:'#fff', fontSize:'13px', fontWeight:'600', cursor:'pointer' },

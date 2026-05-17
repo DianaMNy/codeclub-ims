@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { getMentors } from '../api/index';
 import axios from 'axios';
 import Layout from '../components/Layout';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
@@ -44,6 +45,7 @@ function getColor(name) {
 }
 
 export default function Mentors() {
+  const isMobile = useIsMobile();
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -211,7 +213,7 @@ const openDetail = async (mentor) => {
           <p style={styles.sectionSub}>{filtered.length} of {mentors.length} mentors</p>
         </div>
         {loading ? <p style={{color:'#888', padding:'20px'}}>Loading...</p> : (
-          <table style={styles.table}>
+          <div style={{overflowX:'auto'}}><table style={{...styles.table, minWidth:'600px'}}>
             <thead>
               <tr style={{background:'#f8f9fa'}}>
                 <SortTh label="MENTOR" sortK="full_name" />
@@ -264,7 +266,7 @@ const openDetail = async (mentor) => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -447,7 +449,7 @@ const openDetail = async (mentor) => {
 }
 
 const styles = {
-  cards: { display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'16px', marginBottom:'20px' },
+  cards: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'20px' },
   card: { background:'#fff', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)' },
   cardLabel: { fontSize:'10px', fontWeight:'700', color:'#8a96a3', letterSpacing:'0.5px', margin:'0 0 8px 0' },
   cardValue: { fontSize:'36px', fontWeight:'700', color:'#1a2332', margin:'0 0 4px 0' },
@@ -473,7 +475,7 @@ const styles = {
   overlay: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 },
   modal: { background:'#fff', borderRadius:'16px', padding:'32px', width:'90%', maxWidth:'600px', maxHeight:'85vh', overflowY:'auto' },
   modalTitle: { fontSize:'18px', fontWeight:'700', color:'#1a2332', margin:'0 0 24px 0' },
-  formGrid: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'24px' },
+  formGrid: { display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'16px', marginBottom:'24px' },
   formGroup: { display:'flex', flexDirection:'column', gap:'6px' },
   label: { fontSize:'12px', fontWeight:'600', color:'#555' },
   input: { padding:'8px 12px', borderRadius:'8px', border:'1.5px solid #e2e8f0', fontSize:'13px', outline:'none' },

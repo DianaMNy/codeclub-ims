@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -128,6 +129,7 @@ const AUDIT_INIT = {
 const DEVICE_TYPE_OPTIONS = ['Desktops', 'Laptops', 'Projectors', 'Tablets', 'Phones', 'Other'];
 
 export default function MandE() {
+  const isMobile = useIsMobile();
   const [tab, setTab]             = useState('observations');
   const [schools, setSchools]     = useState([]);
   const [visits, setVisits]       = useState([]);
@@ -380,12 +382,12 @@ export default function MandE() {
   }, {})).sort((a,b)=>b.total-a.total);
 
   // ── Styles ──────────────────────────────────────────────────────────────────
-  const inp = { width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1.5px solid #e2e8f0', fontSize:'15px', color:'#333', outline:'none', boxSizing:'border-box', background:'#fff' };
+  const inp = { width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1.5px solid #e2e8f0', fontSize:'16px', color:'#333', outline:'none', boxSizing:'border-box', background:'#fff', minHeight:'48px' };
   const lbl = { fontSize:'14px', fontWeight:'600', color:'#444', display:'block', marginBottom:'6px' };
   const sec = { fontSize:'15px', fontWeight:'700', color:'#1a2332', background:'#f0f7ff', padding:'10px 16px', borderRadius:'8px', marginTop:'24px', marginBottom:'16px', borderLeft:'4px solid #1eb457' };
   const row = { marginBottom:'16px' };
-  const row2 = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginBottom:'16px' };
-  const bdt = { padding:'14px 20px', borderRadius:'10px', border:'none', fontSize:'15px', fontWeight:'600', cursor:'pointer', width:'100%' };
+  const row2 = { display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:'16px', marginBottom:'16px' };
+  const bdt = { padding:'14px 20px', borderRadius:'10px', border:'none', fontSize:'15px', fontWeight:'600', cursor:'pointer', width:'100%', minHeight:'48px' };
   const bdg = (bg,cl,txt) => <span style={{display:'inline-block',padding:'3px 10px',borderRadius:'999px',fontSize:'12px',fontWeight:'600',background:bg,color:cl,whiteSpace:'nowrap'}}>{txt}</span>;
 
   // ── HISTORY VIEW ─────────────────────────────────────────────────────────────
@@ -747,7 +749,7 @@ export default function MandE() {
 
       {tab==='observations'&&(<>
         {/* Stats */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'12px',marginBottom:'20px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))',gap:'12px',marginBottom:'20px'}}>
           {[['TOTAL VISITS',TV,'#69A9C9'],['PHYSICAL',PV,'#1eb457'],['CLUBS RUNNING',CR,'#F7941D'],['FLAGGED',FL,'#e74c3c'],['LEARNERS',TL,'#1abc9c']].map(([l,v,c])=>(
             <div key={l} style={{background:'#fff',borderRadius:'12px',padding:'16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',borderTop:`4px solid ${c}`}}>
               <p style={{fontSize:'9px',fontWeight:'700',color:'#8a96a3',letterSpacing:'0.5px',margin:'0 0 6px'}}>{l}</p>

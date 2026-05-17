@@ -1,6 +1,7 @@
 // src/components/Chatbot.jsx
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(cfg => {
@@ -21,6 +22,7 @@ const SUGGESTIONS = [
 ];
 
 export default function Chatbot() {
+  const isMobile = useIsMobile();
   const [open, setOpen]         = useState(false);
   const [messages, setMessages] = useState([
     { role:'assistant', content:"Habari! 👋 I'm **Cody**, your Code Club Kenya assistant! I can answer questions about the programme, schools, learners, mentors, and live data from the system. What would you like to know? 🚀" }
@@ -72,7 +74,7 @@ export default function Chatbot() {
   return (
     <>
       {/* Floating bubble */}
-      <div style={S.bubble} onClick={() => setOpen(o => !o)}>
+      <div style={{...S.bubble, bottom: isMobile ? '16px' : '24px', right: isMobile ? '16px' : '24px'}} onClick={() => setOpen(o => !o)}>
         <span style={{fontSize:'24px'}}>{open ? '✕' : '🤖'}</span>
         {!open && unread > 0 && <div style={S.unreadBadge}>{unread}</div>}
         {!open && <div style={S.tooltip}>Ask Cody anything! 💬</div>}
@@ -80,7 +82,7 @@ export default function Chatbot() {
 
       {/* Chat window */}
       {open && (
-        <div style={S.window}>
+        <div style={{...S.window, width: isMobile ? '92vw' : '380px', height: isMobile ? '70vh' : '560px', right: isMobile ? '4vw' : '24px', bottom: isMobile ? '80px' : '90px'}}>
           {/* Header */}
           <div style={S.header}>
             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>

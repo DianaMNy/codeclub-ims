@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -85,6 +86,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function DonorView() {
+  const isMobile = useIsMobile();
   const [data, setData]           = useState(null);
   const [schools, setSchools]     = useState([]);
   const [devices, setDevices]     = useState([]);
@@ -238,7 +240,7 @@ export default function DonorView() {
             <p style={S.heroDesc}>Jan 2025 – Dec 2026 · Kiambu, Kajiado & Murang'a Counties · Live Programme Database</p>
 
             {/* NEW hero stats */}
-            <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:'12px', marginTop:'24px'}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'12px', marginTop:'24px'}}>
               {[
                 { value: parseInt(data.schools.active||0) + parseInt(data.schools.centres||0), label:'Coding Clubs' },
                 { value: parseInt(data.schools.learners||0).toLocaleString(), label:'Learners Registered' },
@@ -265,7 +267,7 @@ export default function DonorView() {
         </div>
 
         {/* ── HIGHLIGHT CARDS ───────────────────────────────────────────── */}
-        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'16px', marginBottom:'20px'}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'20px'}}>
           {[
             { icon:'🌍', value:'3', label:'Counties active', sub:'47 counties — national scale opportunity', color:BRAND.blue },
             { icon:'📈', value:`${Math.round(parseInt(data.schools.active||0)/Math.max(parseInt(data.schools.total||1)-parseInt(data.schools.centres||0),1)*100)}%`, label:'Club activation rate', sub:`${data.schools.active} of ${parseInt(data.schools.total)-parseInt(data.schools.centres)} schools running sessions`, color:BRAND.orange },
@@ -395,7 +397,7 @@ export default function DonorView() {
           </p>
 
           {/* 4 stat cards */}
-          <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'16px', marginBottom:'24px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginBottom:'24px'}}>
             {[
               { label:'Total Devices',    value:totalDevices.toLocaleString(), sub:'across all clubs',        color:BRAND.blue,   icon:'💻' },
               { label:'Functioning',      value:totalFunctioning.toLocaleString(), sub:`${funcRate}% working`, color:BRAND.green,  icon:'✅' },
@@ -423,7 +425,7 @@ export default function DonorView() {
           </div>
 
           {/* Device type breakdown */}
-          <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'12px'}}>
             {deviceTypeStats.map(d => {
               const rate = d.total ? Math.round((d.functioning/d.total)*100) : 0;
               const color = rate>=75?BRAND.green:rate>=50?BRAND.orange:BRAND.red;
@@ -446,7 +448,7 @@ export default function DonorView() {
         <div style={S.whiteCard}>
           <p style={S.wCardTitle}>💬 Voices from the Field</p>
           <p style={{fontSize:'12px', color:'#8a96a3', margin:'0 0 20px'}}>Real impact from educators, parents and community members</p>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'16px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'16px'}}>
             {IMPACT_STORIES.map((story,i) => (
               <div key={i} style={{...S.storyCard, borderTop:`4px solid ${story.color}`}}>
                 <p style={S.storyQuote}>"{story.quote}"</p>
@@ -467,11 +469,11 @@ export default function DonorView() {
         {/* ── COUNTY BREAKDOWN ─────────────────────────────────────────── */}
         <div style={S.whiteCard}>
           <p style={S.wCardTitle}>Schools & Learners by County</p>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'16px', marginTop:'16px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'16px', marginTop:'16px'}}>
             {data.counties.map(county => (
               <div key={county.county} style={{...S.countyCard, borderTop:`4px solid ${COUNTY_COLORS[county.county]||'#888'}`}}>
                 <p style={{fontSize:'18px', fontWeight:'700', margin:'0 0 16px', color:COUNTY_COLORS[county.county]}}>{county.county}</p>
-                <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px', marginBottom:'12px'}}>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'8px', marginBottom:'12px'}}>
                   {[{label:'Schools',value:county.schools},{label:'Active',value:county.active},{label:'Learners',value:parseInt(county.learners||0).toLocaleString()}].map(s=>(
                     <div key={s.label} style={{textAlign:'center'}}>
                       <p style={{margin:0, fontSize:'20px', fontWeight:'700', color:'#1a2332'}}>{s.value}</p>
@@ -493,7 +495,7 @@ export default function DonorView() {
         {/* ── KEY ACHIEVEMENTS ─────────────────────────────────────────── */}
         <div style={S.whiteCard}>
           <p style={S.wCardTitle}>Key Programme Achievements</p>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'16px', marginTop:'16px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'16px', marginTop:'16px'}}>
             {[
               {icon:'🏫', value:parseInt(data.schools.active||0)+parseInt(data.schools.centres||0), label:'Active Coding Clubs',  sub:'schools + community centres', color:BRAND.green},
               {icon:'👩‍🏫', value:data.teachers.total,    label:'Trained Educators',    sub:'club leaders & teachers',  color:BRAND.blue},

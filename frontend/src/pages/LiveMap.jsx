@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout';
 import axios from 'axios';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL + '/api' });
 api.interceptors.request.use(config => {
@@ -84,6 +85,7 @@ const STATUS_COLORS_MAP = {
 };
 
 export default function LiveMap() {
+  const isMobile = useIsMobile();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
