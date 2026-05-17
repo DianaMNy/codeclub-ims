@@ -947,45 +947,39 @@ export default function MandE() {
           {auditLoading ? <p style={{color:'#888',padding:'20px'}}>Loading...</p> : (
             filteredAudits.length === 0
               ? <p style={{color:'#888',textAlign:'center',padding:'36px'}}>No device audits recorded yet.</p>
-              : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'12px'}}>
-                  {filteredAudits.map(a=> {
-                    const type = a.school_type_current || a.school_type;
-                    return (
-                      <div key={a.id} style={{border:'1px solid #eef2f7',borderRadius:'10px',padding:'16px',background:'#fff'}}>
-                        <div style={{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'flex-start',marginBottom:'10px'}}>
-                          <div>
-                            <p style={{margin:'0 0 4px',fontSize:'14px',fontWeight:'700',color:'#1a2332'}}>{a.school_name || '—'}</p>
-                            <p style={{margin:0,fontSize:'12px',color:'#8a96a3'}}>{a.club_id || a.coding_club_id || 'No club ID'} · {type === 'community_centre' ? 'Community centre' : 'School'}</p>
-                          </div>
-                          {bdg('#e8f4fd','#2980b9',a.device_type)}
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'8px',margin:'12px 0'}}>
-                          <div style={{background:'#f8f9fa',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-                            <p style={{margin:0,fontSize:'20px',fontWeight:'700',color:'#1a2332'}}>{a.total_devices || 0}</p>
-                            <p style={{margin:0,fontSize:'10px',color:'#8a96a3'}}>Total</p>
-                          </div>
-                          <div style={{background:'#eafaf1',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-                            <p style={{margin:0,fontSize:'20px',fontWeight:'700',color:'#1a8a4a'}}>{a.functioning_devices || 0}</p>
-                            <p style={{margin:0,fontSize:'10px',color:'#1a8a4a'}}>Working</p>
-                          </div>
-                          <div style={{background:'#fdedec',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-                            <p style={{margin:0,fontSize:'20px',fontWeight:'700',color:'#e74c3c'}}>{a.faulty_devices || 0}</p>
-                            <p style={{margin:0,fontSize:'10px',color:'#e74c3c'}}>Faulty</p>
-                          </div>
-                        </div>
-                        {a.comments && <p style={{margin:'0 0 12px',fontSize:'13px',color:'#555',lineHeight:1.4}}>{a.comments}</p>}
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
-                          <span style={{fontSize:'12px',color:'#8a96a3'}}>
-                            {a.audit_date ? new Date(a.audit_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'} · {a.mentor_name || '—'}
-                          </span>
-                          <div style={{display:'flex',gap:'6px'}}>
-                            <button style={{padding:'6px 10px',borderRadius:'8px',border:'1.5px solid #69A9C9',background:'#fff',fontSize:'12px',cursor:'pointer',color:'#69A9C9'}} onClick={()=>openAuditEdit(a)}>Edit</button>
-                            <button style={{padding:'6px 10px',borderRadius:'8px',border:'1.5px solid #e74c3c',background:'#fff',fontSize:'12px',cursor:'pointer',color:'#e74c3c'}} onClick={()=>handleAuditDelete(a.id, a.school_name)}>Delete</button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',minWidth:'800px'}}>
+                    <thead>
+                      <tr style={{background:'#f8f9fa'}}>
+                        {['SCHOOL / CENTRE','CLUB ID','TYPE','DEVICE TYPE','TOTAL','WORKING','FAULTY','COMMENTS','DATE','MENTOR','ACTIONS'].map(h=>(
+                          <th key={h} style={{padding:'10px 12px',textAlign:'left',fontSize:'11px',fontWeight:'700',color:'#8a96a3',letterSpacing:'0.5px',borderBottom:'2px solid #f0f0f0',whiteSpace:'nowrap'}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAudits.map((a,i)=> {
+                        const type = a.school_type_current || a.school_type;
+                        return (
+                          <tr key={a.id} style={{background:i%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0'}}>
+                            <td style={{padding:'10px 12px',fontSize:'13px',fontWeight:'600',color:'#1a2332',whiteSpace:'nowrap'}}>{a.school_name || '—'}</td>
+                            <td style={{padding:'10px 12px',fontSize:'12px',color:'#8a96a3',whiteSpace:'nowrap'}}>{a.club_id || a.coding_club_id || '—'}</td>
+                            <td style={{padding:'10px 12px',fontSize:'12px',color:'#555',whiteSpace:'nowrap'}}>{type === 'community_centre' ? 'Centre' : 'School'}</td>
+                            <td style={{padding:'10px 12px'}}>{bdg('#e8f4fd','#2980b9',a.device_type)}</td>
+                            <td style={{padding:'10px 12px',fontSize:'14px',fontWeight:'700',color:'#1a2332',textAlign:'center'}}>{a.total_devices || 0}</td>
+                            <td style={{padding:'10px 12px',textAlign:'center'}}>{bdg('#eafaf1','#1a8a4a',a.functioning_devices || 0)}</td>
+                            <td style={{padding:'10px 12px',textAlign:'center'}}>{parseInt(a.faulty_devices||0)>0?bdg('#fdedec','#e74c3c',a.faulty_devices):bdg('#eafaf1','#1a8a4a','0')}</td>
+                            <td style={{padding:'10px 12px',fontSize:'12px',color:'#555',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.comments || '—'}</td>
+                            <td style={{padding:'10px 12px',fontSize:'12px',color:'#8a96a3',whiteSpace:'nowrap'}}>{a.audit_date ? new Date(a.audit_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
+                            <td style={{padding:'10px 12px',fontSize:'12px',color:'#555',whiteSpace:'nowrap'}}>{a.mentor_name || '—'}</td>
+                            <td style={{padding:'10px 12px',whiteSpace:'nowrap'}}>
+                              <button style={{padding:'5px 10px',borderRadius:'8px',border:'1.5px solid #69A9C9',background:'#fff',fontSize:'12px',cursor:'pointer',color:'#69A9C9',marginRight:'6px'}} onClick={()=>openAuditEdit(a)}>Edit</button>
+                              <button style={{padding:'5px 10px',borderRadius:'8px',border:'1.5px solid #e74c3c',background:'#fff',fontSize:'12px',cursor:'pointer',color:'#e74c3c'}} onClick={()=>handleAuditDelete(a.id, a.school_name)}>Delete</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
           )}
         </div>
