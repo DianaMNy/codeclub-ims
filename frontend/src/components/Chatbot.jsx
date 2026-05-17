@@ -9,53 +9,15 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
-const PROGRAMME_CONTEXT = `
-You are Cody 🤖, the smart AI assistant for EmpServe Kenya's Code Club IMS (Information Management System).
-You are friendly, enthusiastic, and knowledgeable about the RPF 2026 programme.
-
-PROGRAMME BACKGROUND:
-- EmpServe Kenya partners with Raspberry Pi Foundation (RPF) to run Code Clubs
-- Programme runs Aug 2025 – Jul 2026 across Kiambu, Murang'a, and Kajiado counties in Kenya
-- Goal: 150 schools/community centres, 5,000 learners, 200 teachers
-- Learners: Grades 4-12, 50% female participation target, neurodivergent support
-- Weekly 1-hour Code Club sessions aligned with CBC calendar (Jan 6 – Oct 24, 2025)
-- Software: Scratch 3.0, Python (Thonny IDE), Code Club on a Stick (offline)
-- Hardware: 10-15 devices per school (computers/tablets/laptops)
-- Training: 4-week (8-hour) teacher training, 6-week community champions training
-- Safeguarding: 1-hour module mandatory for all facilitators
-- Global events: Coolest Projects Talent Showcase (Apr 2026), Astro Pi Challenge
-- CBC integration: Digital Literacy (Gr 4-6), ICT (Gr 7-9), Pre-Technical Studies (Gr 10-12)
-- Contact: partnerships@empserve.org | +254-710-652215 | www.empserve.org
-
-PATHWAYS:
-- Scratch Fundamentals 🐱: L1 Intro to Scratch, L2 More Scratch, L3 Further Scratch
-- Python Basics 🐍: L1 Intro to Python, L2 Functions & Loops, L3 Data & Logic  
-- AI & Machine Learning 🧠: L1 What is AI?, L2 Training Models, L3 Building with AI
-- Web Design 🌐: L1 HTML, L2 CSS Styling, L3 Responsive Design
-- Physical Computing 🤖: L1 Hardware, L2 Sensors, L3 Building Projects
-- Game Design 🎮: L1 Concepts, L2 Mechanics, L3 Building & Testing
-
-ROLES IN THE SYSTEM:
-- Admin: Full access, manages everything
-- Programme Coordinator: Manages programme, views all data
-- Mentor (Youth Mentor): Assigned to schools, does M&E visits, logs observations
-- Teacher/Club Leader: Runs the Code Club sessions at school
-
-LIVE DATA FROM THE SYSTEM will be provided below. Use it to answer specific questions.
-Always be helpful, concise, and add a Kenyan/coding flair to your responses! 
-Use emojis to make responses fun. Keep answers under 150 words unless asked for detail.
-If you don't know something, say so honestly and suggest who to contact.
-`;
-
 const SUGGESTIONS = [
   "How many coding clubs are in Kiambu? 🏫",
-  "What is the Coolest Projects showcase? 🚀",
   "How many learners are registered? 👩‍💻",
-  "Which schools have open flags? 🚩",
+  "Which county has the most active clubs? 📊",
   "What pathways do we teach? 📚",
-  "How many devices are functioning? 💻",
+  "How many devices are in the programme? 💻",
+  "What is the Coolest Projects showcase? 🚀",
+  "How many open flags are there? 🚩",
   "What is the safeguarding module? 🛡️",
-  "Show me the programme summary 📊",
 ];
 
 export default function Chatbot() {
@@ -63,16 +25,10 @@ export default function Chatbot() {
   const [messages, setMessages] = useState([
     { role:'assistant', content:"Habari! 👋 I'm **Cody**, your Code Club Kenya assistant! I can answer questions about the programme, schools, learners, mentors, and live data from the system. What would you like to know? 🚀" }
   ]);
-  const [input, setInput]       = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [liveData, setLiveData] = useState(null);
-  const [unread, setUnread]     = useState(0);
+  const [input, setInput]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [unread, setUnread]   = useState(0);
   const bottomRef = useRef(null);
-
-  // Fetch live summary data once
-  useEffect(() => {
-    api.get('/reports/summary').then(r => setLiveData(r.data)).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (open) {
@@ -81,58 +37,24 @@ export default function Chatbot() {
     }
   }, [open, messages]);
 
-  const buildSystemPrompt = () => {
-    let prompt = PROGRAMME_CONTEXT;
-    if (liveData) {
-      prompt += `\n\nLIVE SYSTEM DATA (as of today):\n`;
-      prompt += `- Total Schools: ${liveData.schools?.total || 'N/A'}\n`;
-      prompt += `- Community Centres: ${liveData.schools?.centres || 'N/A'}\n`;
-      prompt += `- Active Coding Clubs: ${liveData.schools?.active || 'N/A'}\n`;
-      prompt += `- Total Learners: ${liveData.schools?.learners || 'N/A'}\n`;
-      prompt += `- Total Mentors: ${liveData.mentors?.total || 'N/A'}\n`;
-      prompt += `- Active Mentors: ${liveData.mentors?.active || 'N/A'}\n`;
-      prompt += `- Total Teachers/Club Leaders: ${liveData.teachers?.total || 'N/A'}\n`;
-      prompt += `- Training Completed: ${liveData.teachers?.trained || 'N/A'}\n`;
-      prompt += `- Safeguarding Done: ${liveData.teachers?.safeguarded || 'N/A'}\n`;
-      prompt += `- Open Flags: ${liveData.flags?.open || 'N/A'}\n`;
-      prompt += `- Pathways Started: ${liveData.pathways?.total || 'N/A'}\n`;
-      prompt += `- Pathways Completed: ${liveData.pathways?.completed || 'N/A'}\n`;
-      prompt += `- Session Observations: ${liveData.observations?.total || 'N/A'}\n`;
-      if (liveData.counties) {
-        prompt += `\nBY COUNTY:\n`;
-        liveData.counties?.forEach?.(c => {
-          prompt += `- ${c.county}: ${c.schools} schools, ${c.active} active, ${c.learners} learners\n`;
-        });
-      }
-    }
-    return prompt;
-  };
-
   const sendMessage = async (userMsg) => {
-    if (!userMsg.trim()) return;
+    if (!userMsg.trim() || loading) return;
     const newMessages = [...messages, { role:'user', content:userMsg }];
     setMessages(newMessages);
     setInput('');
     setLoading(true);
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: buildSystemPrompt(),
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+      // Call our Railway backend — it has the API key and live DB data
+      const res = await api.post('/cody/chat', {
+        messages: newMessages.map(m => ({ role:m.role, content:m.content })),
       });
-
-      const data = await response.json();
-      const reply = data.content?.[0]?.text || "Sorry, I couldn't get a response. Try again! 🔄";
+      const reply = res.data.reply || "Sorry, I couldn't get a response. Try again! 🔄";
       setMessages(prev => [...prev, { role:'assistant', content:reply }]);
       if (!open) setUnread(u => u + 1);
     } catch(err) {
-      setMessages(prev => [...prev, { role:'assistant', content:"Oops! 😅 I'm having trouble connecting. Please try again in a moment!" }]);
+      const errMsg = err.response?.data?.error || "Oops! 😅 I'm having trouble connecting. Please try again!";
+      setMessages(prev => [...prev, { role:'assistant', content:errMsg }]);
     } finally {
       setLoading(false);
     }
@@ -142,7 +64,6 @@ export default function Chatbot() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
-  // Simple markdown bold renderer
   const renderText = (text) => {
     const parts = text.split(/\*\*(.*?)\*\*/g);
     return parts.map((p, i) => i%2===1 ? <strong key={i}>{p}</strong> : p);
@@ -154,9 +75,7 @@ export default function Chatbot() {
       <div style={S.bubble} onClick={() => setOpen(o => !o)}>
         <span style={{fontSize:'24px'}}>{open ? '✕' : '🤖'}</span>
         {!open && unread > 0 && <div style={S.unreadBadge}>{unread}</div>}
-        {!open && (
-          <div style={S.tooltip}>Ask Cody anything! 💬</div>
-        )}
+        {!open && <div style={S.tooltip}>Ask Cody anything! 💬</div>}
       </div>
 
       {/* Chat window */}
@@ -169,7 +88,7 @@ export default function Chatbot() {
               <div>
                 <p style={{margin:0, fontWeight:'700', fontSize:'14px', color:'#fff'}}>Cody</p>
                 <p style={{margin:0, fontSize:'11px', color:'rgba(255,255,255,0.7)'}}>
-                  {liveData ? '🟢 Live data connected' : '⏳ Loading data...'}
+                  🟢 Live RPF 2026 data connected
                 </p>
               </div>
             </div>
@@ -195,15 +114,15 @@ export default function Chatbot() {
             {loading && (
               <div style={{...S.msgRow, justifyContent:'flex-start'}}>
                 <div style={S.botAvatar}>🤖</div>
-                <div style={{...S.msgBubble, background:'#fff', color:'#888'}}>
-                  <span style={S.typing}>⏳ Cody is thinking</span>
+                <div style={{...S.msgBubble, background:'#fff', color:'#888', fontStyle:'italic'}}>
+                  ⏳ Cody is thinking...
                 </div>
               </div>
             )}
             <div ref={bottomRef}/>
           </div>
 
-          {/* Suggestions */}
+          {/* Suggestions — show only at start */}
           {messages.length <= 2 && (
             <div style={S.suggestions}>
               {SUGGESTIONS.slice(0,4).map((s,i) => (
@@ -243,9 +162,8 @@ const S = {
   msgRow: { display:'flex', alignItems:'flex-end', gap:'8px' },
   botAvatar: { width:'28px', height:'28px', borderRadius:'50%', background:'#1eb457', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', flexShrink:0 },
   msgBubble: { maxWidth:'80%', padding:'10px 14px', fontSize:'13px', lineHeight:1.5 },
-  typing: { animation:'pulse 1.5s infinite' },
   suggestions: { padding:'8px 12px', display:'flex', flexDirection:'column', gap:'6px' },
-  suggBtn: { background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', cursor:'pointer', color:'#1a2332', textAlign:'left', transition:'all 0.15s' },
+  suggBtn: { background:'#fff', border:'1.5px solid #e2e8f0', borderRadius:'8px', padding:'8px 12px', fontSize:'12px', cursor:'pointer', color:'#1a2332', textAlign:'left' },
   inputRow: { display:'flex', gap:'8px', padding:'8px 12px', background:'#fff', borderTop:'1px solid #f0f0f0' },
   input: { flex:1, border:'1.5px solid #e2e8f0', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', resize:'none', outline:'none', fontFamily:'inherit' },
   sendBtn: { padding:'8px 14px', borderRadius:'10px', border:'none', background:'#1eb457', color:'#fff', fontSize:'16px', cursor:'pointer' },
