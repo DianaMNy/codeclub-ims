@@ -102,7 +102,7 @@ export default function Reports() {
       const headers = ['School','County','Device Type','Total','Functioning','Faulty','Comments','Date'];
       const rows = deviceData.map(d => [
         d.school_name||'', d.county||'', d.device_type||'',
-        d.total_devices||0, d.functioning||0, d.faulty||0,
+        d.total_devices||0, d.functioning_devices||0, d.faulty_devices||0,
         d.comments||'', d.audit_date||'',
       ]);
       const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
@@ -145,15 +145,15 @@ export default function Reports() {
     : deviceAudits;
 
   const totalDevices     = filteredDevices.reduce((s,d) => s+(parseInt(d.total_devices)||0), 0);
-  const totalFunctioning = filteredDevices.reduce((s,d) => s+(parseInt(d.functioning)||0), 0);
-  const totalFaulty      = filteredDevices.reduce((s,d) => s+(parseInt(d.faulty)||0), 0);
+  const totalFunctioning = filteredDevices.reduce((s,d) => s+(parseInt(d.functioning_devices)||0), 0);
+  const totalFaulty      = filteredDevices.reduce((s,d) => s+(parseInt(d.faulty_devices)||0), 0);
   const funcRate         = totalDevices ? Math.round((totalFunctioning/totalDevices)*100) : 0;
 
   const deviceTypeData = ['Desktops','Laptops','Projectors','Tablets','Phones','Other'].map(type => ({
     name: type,
     Total:       deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.total_devices)||0),0),
-    Functioning: deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.functioning)||0),0),
-    Faulty:      deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.faulty)||0),0),
+    Functioning: deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.functioning_devices)||0),0),
+    Faulty:      deviceAudits.filter(d=>d.device_type===type).reduce((s,d)=>s+(parseInt(d.faulty_devices)||0),0),
   })).filter(d => d.Total > 0);
 
   // Summary chart data
@@ -377,7 +377,7 @@ export default function Reports() {
                     <p style={styles.chartTitle}>Schools Assigned — Top 10 Mentors</p>
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart layout="vertical"
-                        data={[...data].sort((a,b)=>b.schools_assigned-a.schools_assigned).slice(0,10).map(m=>({name:m.mentor_name.split(' ').slice(0,2).join(' '),Schools:parseInt(m.schools_assigned),Active:parseInt(m.active_schools)}))}
+                        data={[...data].sort((a,b)=>b.schools_assigned-a.schools_assigned).slice(0,10).map(m=>({name:(m.mentor_name||'Unknown').split(' ').slice(0,2).join(' '),Schools:parseInt(m.schools_assigned),Active:parseInt(m.active_schools)}))}
                         margin={{top:5,right:20,left:60,bottom:5}}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                         <XAxis type="number" tick={{fontSize:10}} />
@@ -561,10 +561,10 @@ export default function Reports() {
                 {/* Summary stat cards */}
                 <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'16px',marginBottom:'24px'}}>
                   {[
-                    { label:'TOTAL DEVICES',    value:totalDevices,     sub:'across all clubs',       color:BRAND.blue },
-                    { label:'FUNCTIONING',      value:totalFunctioning, sub:`${funcRate}% working`,   color:BRAND.green },
+                    { label:'TOTAL DEVICES',    value:totalDevices,     sub:'across all clubs',        color:BRAND.blue },
+                    { label:'FUNCTIONING',      value:totalFunctioning, sub:`${funcRate}% working`,    color:BRAND.green },
                     { label:'FAULTY',           value:totalFaulty,      sub:'need repair/replacement', color:BRAND.red },
-                    { label:'CLUBS AUDITED',    value:new Set(filteredDevices.map(d=>d.school_id||d.school_name)).size, sub:'schools & centres', color:BRAND.orange },
+                    { label:'CLUBS AUDITED',    value:new Set(filteredDevices.map(d=>d.school_name_snapshot||d.school_name)).size, sub:'schools & centres', color:BRAND.orange },
                   ].map(c=>(
                     <div key={c.label} style={{background:'#f8f9fa',borderRadius:'10px',padding:'16px',borderTop:`4px solid ${c.color}`}}>
                       <p style={styles.cardLabel}>{c.label}</p>
@@ -629,60 +629,42 @@ export default function Reports() {
                   </div>
                 )}
 
-                {/* Device audit table */}
+                {/* Device audit table — no health column */}
                 <div style={{marginTop:'20px',overflowX:'auto'}}>
                   <table style={styles.table}>
                     <thead><tr style={styles.thead}>
                       <th style={styles.th}>SCHOOL / CENTRE</th>
                       <th style={styles.th}>COUNTY</th>
-                      <th style={styles.th}>TYPE</th>
                       <th style={styles.th}>DEVICE TYPE</th>
                       <th style={styles.th}>TOTAL</th>
                       <th style={styles.th}>FUNCTIONING</th>
                       <th style={styles.th}>FAULTY</th>
-                      <th style={styles.th}>HEALTH</th>
                       <th style={styles.th}>COMMENTS</th>
                     </tr></thead>
                     <tbody>
                       {filteredDevices.length === 0 ? (
-                        <tr><td colSpan={9} style={{padding:'40px',textAlign:'center',color:'#888'}}>
+                        <tr><td colSpan={7} style={{padding:'40px',textAlign:'center',color:'#888'}}>
                           No device audit records found.
                         </td></tr>
-                      ) : filteredDevices.map((row,i)=>{
-                        const health = row.total_devices ? Math.round((parseInt(row.functioning||0)/parseInt(row.total_devices))*100) : 0;
-                        return (
-                          <tr key={i} style={{background:i%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0'}}>
-                            <td style={{...styles.td,fontWeight:'500',color:'#1a2332'}}>{row.school_name||'—'}</td>
-                            <td style={styles.td}>{row.county||'—'}</td>
-                            <td style={styles.td}>
-                              <span style={{...styles.badge,background:'#f0f0f0',color:'#555'}}>
-                                {row.school_type==='community_centre'?'🏢 Centre':'🏫 School'}
-                              </span>
-                            </td>
-                            <td style={styles.td}>
-                              <span style={{...styles.badge,background:'#e8f4fd',color:'#2980b9'}}>{row.device_type||'—'}</span>
-                            </td>
-                            <td style={{...styles.td,fontWeight:'600'}}>{row.total_devices||0}</td>
-                            <td style={styles.td}>
-                              <span style={{...styles.badge,background:'#eafaf1',color:'#1a8a4a'}}>✅ {row.functioning||0}</span>
-                            </td>
-                            <td style={styles.td}>
-                              {parseInt(row.faulty||0) > 0
-                                ? <span style={{...styles.badge,background:'#fdedec',color:BRAND.red}}>⚠️ {row.faulty}</span>
-                                : <span style={{...styles.badge,background:'#eafaf1',color:'#1a8a4a'}}>✅ 0</span>}
-                            </td>
-                            <td style={{...styles.td,minWidth:'120px'}}>
-                              <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                                <div style={{flex:1,background:'#f0f0f0',borderRadius:'999px',height:'6px'}}>
-                                  <div style={{width:`${health}%`,background:health>=75?BRAND.green:health>=50?BRAND.orange:BRAND.red,height:'6px',borderRadius:'999px'}}/>
-                                </div>
-                                <span style={{fontSize:'11px',fontWeight:'600',color:health>=75?BRAND.green:health>=50?BRAND.orange:BRAND.red}}>{health}%</span>
-                              </div>
-                            </td>
-                            <td style={{...styles.td,maxWidth:'200px',color:'#8a96a3',fontSize:'12px'}}>{row.comments||'—'}</td>
-                          </tr>
-                        );
-                      })}
+                      ) : filteredDevices.map((row,i)=>(
+                        <tr key={i} style={{background:i%2===0?'#fff':'#fafafa',borderBottom:'1px solid #f0f0f0'}}>
+                          <td style={{...styles.td,fontWeight:'500',color:'#1a2332'}}>{row.school_name_snapshot||row.school_name||'—'}</td>
+                          <td style={styles.td}>{row.county_snapshot||row.county||'—'}</td>
+                          <td style={styles.td}>
+                            <span style={{...styles.badge,background:'#e8f4fd',color:'#2980b9'}}>{row.device_type||'—'}</span>
+                          </td>
+                          <td style={{...styles.td,fontWeight:'600'}}>{row.total_devices||0}</td>
+                          <td style={styles.td}>
+                            <span style={{...styles.badge,background:'#eafaf1',color:'#1a8a4a'}}>✅ {row.functioning_devices||0}</span>
+                          </td>
+                          <td style={styles.td}>
+                            {parseInt(row.faulty_devices||0) > 0
+                              ? <span style={{...styles.badge,background:'#fdedec',color:BRAND.red}}>⚠️ {row.faulty_devices}</span>
+                              : <span style={{...styles.badge,background:'#eafaf1',color:'#1a8a4a'}}>✅ 0</span>}
+                          </td>
+                          <td style={{...styles.td,maxWidth:'250px',color:'#555',fontSize:'12px'}}>{row.comments||'—'}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
