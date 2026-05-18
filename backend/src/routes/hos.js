@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // GET all HOS
 router.get('/', requireAuth, async (req, res) => {
@@ -29,6 +30,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     `, [full_name, phone||null, email||null, school_id||null,
         training_completed||false, safeguarding_done||false, survey_done||false,
         role||'head_of_school', county||null]);
+    await logAudit(req, 'CREATE', 'heads_of_school', result.rows[0].id, `Created record in heads_of_school`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -49,6 +51,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
         training_completed, safeguarding_done, survey_done||false,
         role||'head_of_school', county||null, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'UPDATE', 'heads_of_school', req.params.id, `Updated record ${req.params.id} in heads_of_school`);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -60,6 +63,7 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM heads_of_school WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'DELETE', 'heads_of_school', req.params.id, `Deleted record ${req.params.id} from heads_of_school`);
     res.json({ message: 'Deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // ── SESSION OBSERVATIONS ─────────────────────────────────────
 router.get('/observations', requireAuth, async (req, res) => {
@@ -48,6 +49,7 @@ router.post('/observations', requireAuth, async (req, res) => {
        quality_score || null, engagement_score || null,
        gps_lat || null, gps_lng || null, gps_accuracy || null]
     );
+    await logAudit(req, 'CREATE', 'session_observations', result.rows[0].id, `Created record in session_observations`);
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -89,6 +91,7 @@ router.post('/reflections', requireAuth, async (req, res) => {
        reflection_title, reflection_text, confidence_rating || null,
        milestone || null]
     );
+    await logAudit(req, 'CREATE', 'teacher_reflections', result.rows[0].id, `Created record in teacher_reflections`);
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -129,6 +132,7 @@ router.post('/surveys', requireAuth, async (req, res) => {
        survey_score || null, follow_up_required || false,
        follow_up_notes || null]
     );
+    await logAudit(req, 'CREATE', 'surveys_compliance', result.rows[0].id, `Created record in surveys_compliance`);
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -164,6 +168,7 @@ router.post('/training', requireAuth, async (req, res) => {
        teachers_attended || 0, mentors_attended || 0,
        facilitator || null, notes || null]
     );
+    await logAudit(req, 'CREATE', 'training_onboarding', result.rows[0].id, `Created record in training_onboarding`);
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

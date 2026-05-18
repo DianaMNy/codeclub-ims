@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // ── GET /api/flags ───────────────────────────────────────────
 // Admin sees all flags, mentor sees only their schools' flags
@@ -64,6 +65,7 @@ router.post('/', requireAuth, async (req, res) => {
       RETURNING *
     `, [school_id, req.user.mentor_id, reason]);
 
+    await logAudit(req, 'CREATE', 'flags', result.rows[0].id, `Created record in flags`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Create flag error:', err.message);
@@ -90,6 +92,7 @@ router.patch('/:id/resolve', requireAuth, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Flag not found' });
     }
 
+    await logAudit(req, 'UPDATE', 'flags', req.params.id, `Resolved flag ${req.params.id}`);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Resolve flag error:', err.message);

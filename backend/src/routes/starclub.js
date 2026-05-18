@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // GET /api/starclub — all evaluations
 router.get('/', requireAuth, async (req, res) => {
@@ -62,6 +63,7 @@ router.post('/', requireAuth, async (req, res) => {
         follow_up_notes || null
       ]
     );
+    await logAudit(req, 'CREATE', 'star_club_evaluations', result.rows[0].id, `Created record in star_club_evaluations`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -110,6 +112,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       ]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Evaluation not found' });
+    await logAudit(req, 'UPDATE', 'star_club_evaluations', id, `Updated record ${id} in star_club_evaluations`);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -125,6 +128,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Evaluation not found' });
+    await logAudit(req, 'DELETE', 'star_club_evaluations', id, `Deleted record ${id} from star_club_evaluations`);
     res.json({ message: 'Evaluation deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

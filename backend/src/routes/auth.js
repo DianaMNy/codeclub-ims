@@ -6,6 +6,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/index');
+const { logAudit } = require('../utils/audit');
 
 // ── POST /api/auth/login ─────────────────────────────────────
 // Body: { email, password }
@@ -46,6 +47,8 @@ router.post('/login', async (req, res) => {
     );
 
     // 5. Send back token + safe user info (never send password_hash!)
+    req.user = { id: user.id, full_name: user.full_name, email: user.email, role: user.role };
+    await logAudit(req, 'LOGIN', 'users', user.id, `${user.full_name || user.email} logged in`);
     res.json({
       token,
       user: {

@@ -97,6 +97,9 @@ app.use('/api/cody', codyRoutes);
 const projectsShowcaseRoutes = require('./routes/projects_showcase');
 app.use('/api/projects-showcase', projectsShowcaseRoutes);
 
+const auditLogRoutes = require('./routes/audit_logs');
+app.use('/api/audit-logs', auditLogRoutes);
+
 // ── Start the server ──────────────────────────────────
 const PORT = process.env.PORT || 5000;
 

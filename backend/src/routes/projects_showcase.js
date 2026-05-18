@@ -108,6 +108,8 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+const { logAudit } = require('../utils/audit');
+
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { mentor_id } = req.user;
@@ -132,6 +134,7 @@ router.post('/', requireAuth, async (req, res) => {
         pathway_name_snapshot || null,
       ]
     );
+    await logAudit(req, 'CREATE', 'project_submissions', result.rows[0].id, `Created record in project_submissions`);
     res.status(201).json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -160,6 +163,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       ]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'UPDATE', 'project_submissions', req.params.id, `Updated record ${req.params.id} in project_submissions`);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -167,6 +171,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM project_submissions WHERE id=$1', [req.params.id]);
+    await logAudit(req, 'DELETE', 'project_submissions', req.params.id, `Deleted record ${req.params.id} from project_submissions`);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

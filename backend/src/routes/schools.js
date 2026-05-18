@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // ── GET /api/schools ─────────────────────────────────────────
 // Returns all schools and community centres
@@ -101,6 +102,7 @@ RETURNING *
  guidelines_signed, notes, mentor_id, enrollment_date || null, cohort,
  hos_name, hos_phone, hos_email]);
 
+    await logAudit(req, 'CREATE', 'schools_and_centres', result.rows[0].id, `Created school: ${result.rows[0].official_name}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Create school error:', err.message);
@@ -138,6 +140,7 @@ RETURNING *
       return res.status(404).json({ error: 'School not found' });
     }
 
+    await logAudit(req, 'UPDATE', 'schools_and_centres', req.params.id, `Updated school ${req.params.id} in schools_and_centres`);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update school error:', err.message);
@@ -158,6 +161,7 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'School not found' });
     }
 
+    await logAudit(req, 'DELETE', 'schools_and_centres', req.params.id, `Deleted record ${req.params.id} from schools_and_centres`);
     res.json({ message: 'School deleted successfully' });
   } catch (err) {
     console.error('Delete school error:', err.message);

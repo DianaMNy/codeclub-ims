@@ -61,6 +61,13 @@ function getColor(name) { let s=0; for(let c of (name||'')) s+=c.charCodeAt(0); 
 
 const EMPTY_FORM = { full_name:'', email:'', password:'', role:'mentor', linked_id:'' };
 
+const ACTION_STYLES = {
+  LOGIN:  { color:'#2980b9', bg:'#e8f4fd' },
+  CREATE: { color:'#1a8a4a', bg:'#eafaf1' },
+  UPDATE: { color:'#a0720a', bg:'#fef9e7' },
+  DELETE: { color:'#e74c3c', bg:'#fdedec' },
+};
+
 export default function UserManagement() {
   const isMobile = useIsMobile();
   const [users, setUsers]           = useState([]);
@@ -69,6 +76,12 @@ export default function UserManagement() {
   const [ecosystem, setEcosystem]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [activeTab, setActiveTab]   = useState('users');
+
+  // Audit log state
+  const [auditLogs, setAuditLogs]         = useState([]);
+  const [auditLoading, setAuditLoading]   = useState(false);
+  const [auditSearch, setAuditSearch]     = useState('');
+  const [auditFilter, setAuditFilter]     = useState('');
 
   const [showForm, setShowForm]     = useState(false);
   const [editingId, setEditingId]   = useState(null);
@@ -83,6 +96,15 @@ export default function UserManagement() {
   const refreshUsers = async () => {
     const res = await api.get('/users');
     setUsers(res.data);
+  };
+
+  const fetchAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const res = await api.get('/audit-logs');
+      setAuditLogs(res.data);
+    } catch (err) { console.error(err); }
+    finally { setAuditLoading(false); }
   };
 
   useEffect(() => {
@@ -176,10 +198,17 @@ export default function UserManagement() {
 
       {/* Tabs */}
       <div style={styles.tabs}>
-        {['users','permissions'].map(tab => (
-          <button key={tab} style={{...styles.tab, borderBottom:activeTab===tab?'2px solid #1eb457':'2px solid transparent', color:activeTab===tab?'#1eb457':'#888', fontWeight:activeTab===tab?'600':'400'}}
-            onClick={() => setActiveTab(tab)}>
-            {tab === 'users' ? '👥 System Users' : '🔐 Permissions Matrix'}
+        {[
+          { key:'users',       label:'👥 System Users' },
+          { key:'permissions', label:'🔐 Permissions Matrix' },
+          { key:'audit',       label:'🔍 Audit Log' },
+        ].map(tab => (
+          <button key={tab.key} style={{...styles.tab, borderBottom:activeTab===tab.key?'2px solid #1eb457':'2px solid transparent', color:activeTab===tab.key?'#1eb457':'#888', fontWeight:activeTab===tab.key?'600':'400'}}
+            onClick={() => {
+              setActiveTab(tab.key);
+              if (tab.key === 'audit' && auditLogs.length === 0) fetchAuditLogs();
+            }}>
+            {tab.label}
           </button>
         ))}
       </div>
@@ -356,6 +385,137 @@ export default function UserManagement() {
             )}
           </div>
         </>
+      )}
+
+      {/* ── AUDIT LOG TAB ────────────────────────────────────────────────── */}
+      {activeTab === 'audit' && (
+        <div style={styles.section}>
+          <div style={styles.sectionHead}>
+            <div>
+              <p style={styles.sectionTitle}>🔍 Audit Log</p>
+              <p style={styles.sectionSub}>
+                {auditLogs.length} audit events recorded · admin only · last 500 entries
+              </p>
+            </div>
+            <button style={{...styles.addBtn, background:'#69A9C9'}}
+              onClick={fetchAuditLogs} disabled={auditLoading}>
+              {auditLoading ? 'Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
+
+          {/* Search + Filter */}
+          <div style={{display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center'}}>
+            <input
+              style={{...styles.formInput, minWidth:'220px', flex:1}}
+              placeholder="🔍 Search user, action, table, details..."
+              value={auditSearch}
+              onChange={e => setAuditSearch(e.target.value)}
+            />
+            <select
+              style={{...styles.formSelect, minWidth:'160px'}}
+              value={auditFilter}
+              onChange={e => setAuditFilter(e.target.value)}
+            >
+              <option value="">All Actions</option>
+              <option value="LOGIN">LOGIN</option>
+              <option value="CREATE">CREATE</option>
+              <option value="UPDATE">UPDATE</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+            {(auditSearch || auditFilter) && (
+              <button style={styles.cancelBtn}
+                onClick={() => { setAuditSearch(''); setAuditFilter(''); }}>
+                ✕ Clear
+              </button>
+            )}
+          </div>
+
+          {auditLoading ? (
+            <p style={{color:'#888', padding:'20px'}}>Loading audit events...</p>
+          ) : (() => {
+            const search = auditSearch.toLowerCase();
+            const filtered = auditLogs.filter(log => {
+              if (auditFilter && log.action !== auditFilter) return false;
+              if (search &&
+                !log.user_name?.toLowerCase().includes(search) &&
+                !log.action?.toLowerCase().includes(search) &&
+                !log.table_name?.toLowerCase().includes(search) &&
+                !log.details?.toLowerCase().includes(search)
+              ) return false;
+              return true;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <p style={{color:'#888', padding:'40px', textAlign:'center'}}>
+                  No audit events match your search.
+                </p>
+              );
+            }
+
+            return (
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%', borderCollapse:'collapse', minWidth:'800px'}}>
+                  <thead>
+                    <tr style={{background:'#f8f9fa'}}>
+                      {['TIMESTAMP','USER','ROLE','ACTION','TABLE','DETAILS','IP ADDRESS'].map(h => (
+                        <th key={h} style={styles.mth}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((log, i) => {
+                      const as = ACTION_STYLES[log.action] || { color:'#888', bg:'#f0f0f0' };
+                      return (
+                        <tr key={log.id} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
+                          <td style={{...styles.mtd, whiteSpace:'nowrap', color:'#555'}}>
+                            {new Date(log.created_at).toLocaleString('en-GB', {
+                              day:'2-digit', month:'short', year:'numeric',
+                              hour:'2-digit', minute:'2-digit',
+                            })}
+                          </td>
+                          <td style={{...styles.mtd, fontWeight:'500', color:'#1a2332'}}>
+                            {log.user_name || '—'}
+                          </td>
+                          <td style={styles.mtd}>
+                            {log.user_role ? (
+                              <span style={{
+                                padding:'2px 8px', borderRadius:'999px', fontSize:'11px',
+                                fontWeight:'600',
+                                background: (ROLES.find(r=>r.value===log.user_role)||{bg:'#f0f0f0'}).bg,
+                                color: (ROLES.find(r=>r.value===log.user_role)||{color:'#888'}).color,
+                              }}>
+                                {log.user_role}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td style={styles.mtd}>
+                            <span style={{
+                              padding:'3px 10px', borderRadius:'999px', fontSize:'12px',
+                              fontWeight:'700', background:as.bg, color:as.color,
+                            }}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td style={{...styles.mtd, fontFamily:'monospace', fontSize:'11px', color:'#69A9C9'}}>
+                            {log.table_name || '—'}
+                          </td>
+                          <td style={{...styles.mtd, maxWidth:'220px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
+                            title={log.details}>
+                            {log.details || '—'}
+                          </td>
+                          <td style={{...styles.mtd, fontFamily:'monospace', fontSize:'11px', color:'#888'}}>
+                            {log.ip_address || '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* ── PERMISSIONS MATRIX TAB ────────────────────────────────────────── */}

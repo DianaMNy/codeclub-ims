@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 // ── GET /api/mentors ─────────────────────────────────────────
 // Returns all mentors — admin only
 router.get('/', requireAuth, async (req, res) => {
@@ -73,6 +74,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
     `, [full_name, email, phone, subcounty_area, status || 'active', join_date || null, county]);
+    await logAudit(req, 'CREATE', 'mentors', result.rows[0].id, `Created mentor: ${result.rows[0].full_name}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Create mentor error:', err.message);
@@ -92,6 +94,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       RETURNING *
     `, [full_name, email, phone, subcounty_area, status, join_date || null, county, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Mentor not found' });
+    await logAudit(req, 'UPDATE', 'mentors', req.params.id, `Updated record ${req.params.id} in mentors`);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update mentor error:', err.message);
@@ -107,6 +110,7 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Mentor not found' });
+    await logAudit(req, 'DELETE', 'mentors', req.params.id, `Deleted record ${req.params.id} from mentors`);
     res.json({ message: 'Mentor deleted successfully' });
   } catch (err) {
     console.error('Delete mentor error:', err.message);

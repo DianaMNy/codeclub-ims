@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require('../db/index');
 const bcrypt = require('bcryptjs');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // Add teacher_id column if it doesn't exist yet
 pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id INTEGER`)
@@ -37,6 +38,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, full_name, email, role, teacher_id`,
       [full_name, email.toLowerCase(), hash, role, mentor_id || null, teacher_id || null]
     );
+    await logAudit(req, 'CREATE', 'users', result.rows[0].id, `Created user: ${result.rows[0].full_name}`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Email already exists' });
@@ -63,6 +65,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       [full_name, email.toLowerCase(), role, mentor_id || null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    await logAudit(req, 'UPDATE', 'users', id, `Updated record ${id} in users`);
     res.json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Email already exists' });
@@ -79,6 +82,7 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    await logAudit(req, 'DELETE', 'users', id, `Deleted record ${id} from users`);
     res.json({ message: 'User deleted successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -90,6 +94,7 @@ router.patch('/:id/toggle', requireAuth, requireAdmin, async (req, res) => {
       `UPDATE users SET is_active = NOT is_active WHERE id = $1 RETURNING id, full_name, is_active`,
       [req.params.id]
     );
+    await logAudit(req, 'UPDATE', 'users', req.params.id, `Toggled active status for user ${req.params.id}`);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -101,6 +106,7 @@ router.patch('/:id/reset-password', requireAuth, requireAdmin, async (req, res) 
   try {
     const hash = await bcrypt.hash(password, 10);
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
+    await logAudit(req, 'UPDATE', 'users', req.params.id, `Password reset for user ${req.params.id}`);
     res.json({ message: 'Password reset successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

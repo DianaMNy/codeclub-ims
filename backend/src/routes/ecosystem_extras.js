@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // GET all extras
 router.get('/', requireAuth, async (req, res) => {
@@ -23,6 +24,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       INSERT INTO ecosystem_extras (full_name, role, phone, email, county, subcounty_area, training_completed, safeguarding_done, survey_done)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
     `, [full_name, role, phone, email, county, subcounty_area, training_completed || false, safeguarding_done || false, survey_done || false]);
+    await logAudit(req, 'CREATE', 'ecosystem_extras', result.rows[0].id, `Created record in ecosystem_extras`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,6 +42,7 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
       WHERE id=$10 RETURNING *
     `, [full_name, role, phone, email, county, subcounty_area, training_completed, safeguarding_done, survey_done, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'UPDATE', 'ecosystem_extras', req.params.id, `Updated record ${req.params.id} in ecosystem_extras`);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -51,6 +54,7 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM ecosystem_extras WHERE id=$1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'DELETE', 'ecosystem_extras', req.params.id, `Deleted record ${req.params.id} from ecosystem_extras`);
     res.json({ message: 'Deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

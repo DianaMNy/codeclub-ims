@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 let tableReady = false;
 
@@ -142,6 +143,7 @@ router.post('/', requireAuth, async (req, res) => {
         comments || null,
       ]
     );
+    await logAudit(req, 'CREATE', 'device_audits', result.rows[0].id, `Created record in device_audits`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -193,6 +195,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       ]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Device audit not found' });
+    await logAudit(req, 'UPDATE', 'device_audits', id, `Updated record ${id} in device_audits`);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -204,6 +207,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     await ensureDeviceAuditTable();
     const result = await pool.query('DELETE FROM device_audits WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Device audit not found' });
+    await logAudit(req, 'DELETE', 'device_audits', req.params.id, `Deleted record ${req.params.id} from device_audits`);
     res.json({ message: 'Device audit deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

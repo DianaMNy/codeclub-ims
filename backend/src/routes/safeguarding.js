@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // GET /api/safeguarding — all people needing safeguarding tracking
 router.get('/', requireAuth, async (req, res) => {
@@ -122,6 +123,7 @@ router.patch('/:id/toggle', requireAuth, async (req, res) => {
     }
 
     if (!result.rows.length) return res.status(404).json({ error: 'Record not found' });
+    await logAudit(req, 'UPDATE', person_type, id, `Toggled ${field} for ${person_type} ${id}`);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Toggle safeguarding error:', err.message);

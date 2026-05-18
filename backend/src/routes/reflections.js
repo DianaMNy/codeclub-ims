@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 // ── GET /api/reflections ─────────────────────────────────────
 // Admin sees all, mentor sees only their schools'
@@ -76,6 +77,7 @@ router.post('/', requireAuth, async (req, res) => {
       milestone || null,
     ]);
 
+    await logAudit(req, 'CREATE', 'teacher_reflections', result.rows[0].id, `Created record in teacher_reflections`);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Create reflection error:', err.message);
@@ -101,6 +103,7 @@ router.patch('/:id/review', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Reflection not found' });
     }
 
+    await logAudit(req, 'UPDATE', 'teacher_reflections', req.params.id, `Reviewed reflection ${req.params.id}`);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Review reflection error:', err.message);

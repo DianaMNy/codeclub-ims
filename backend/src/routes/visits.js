@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
+const { logAudit } = require('../utils/audit');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -107,6 +108,7 @@ router.post('/', requireAuth, async (req, res) => {
         ]);
       } catch(e) { console.log('Showcase insert note:', e.message); }
     }
+    await logAudit(req, 'CREATE', 'session_observations', result.rows[0].id, `Created visit record in session_observations`);
     res.status(201).json(result.rows[0]);
   } catch (err) { console.error('Create visit:', err.message); res.status(500).json({ error: err.message }); }
 });
@@ -117,6 +119,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const result = await pool.query(`UPDATE session_observations SET date_of_visit=$1, engagement_type=$2, latitude=$3, longitude=$4, gps_raw=$5, club_running=$6, not_running_reason=$7, activation_actions=$8, club_day=$9, time_band=$10, device_count=$11, total_learners=$12, male_learners=$13, female_learners=$14, engagement_rating=$15, pathway_id=$16, scratch_level=$17, creating_projects=$18, project_id=$19, project_notes=$20, observations=$21, phone_call_notes=$22, challenges=$23, club_leader_confidence=$24, actions_agreed=$25, recommended_star_club=$26, star_club_reason=$27, flag_school=$28, flag_reason=$29, next_visit_date=$30, other_details=$31 WHERE id=$32 RETURNING *`,
       [date_of_visit, engagement_type, latitude||null, longitude||null, gps_raw||null, club_running??true, not_running_reason||null, activation_actions||null, club_day||null, time_band||null, device_count||0, total_learners||0, male_learners||0, female_learners||0, engagement_rating||null, pathway_id||null, scratch_level||null, creating_projects||false, project_id||null, project_notes||null, observations||null, phone_call_notes||null, challenges||null, club_leader_confidence||null, actions_agreed||null, recommended_star_club||false, star_club_reason||null, flag_school||false, flag_reason||null, next_visit_date||null, other_details||null, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'UPDATE', 'session_observations', req.params.id, `Updated record ${req.params.id} in session_observations`);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -125,6 +128,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM session_observations WHERE id=$1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    await logAudit(req, 'DELETE', 'session_observations', req.params.id, `Deleted record ${req.params.id} from session_observations`);
     res.json({ message: 'Deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
