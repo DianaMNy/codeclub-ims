@@ -1,6 +1,6 @@
 // src/pages/Login.jsx
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api/index';
 import { useAuth } from '../context/AuthContext';
 
@@ -55,7 +55,10 @@ export default function Login() {
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>Password</label>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
+              <label style={styles.label}>Password</label>
+              <Link to="/forgot-password" style={styles.forgotLink}>Forgot password?</Link>
+            </div>
             <input
               type="password"
               value={password}
@@ -157,5 +160,10 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     marginTop: '8px',
+  },
+  forgotLink: {
+    fontSize: '12px',
+    color: '#888',
+    textDecoration: 'none',
   },
 };
