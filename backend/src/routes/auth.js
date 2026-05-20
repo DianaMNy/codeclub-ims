@@ -10,8 +10,6 @@ const { Resend } = require('resend');
 const pool = require('../db/index');
 const { logAudit } = require('../utils/audit');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 // ── POST /api/auth/login ─────────────────────────────────────
 // Body: { email, password }
 // Returns: { token, user: { id, full_name, role, mentor_id } }
@@ -98,6 +96,7 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
+    const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
       from: 'Code Club IMS <noreply@empservekenya.org>',
       to: user.email,
