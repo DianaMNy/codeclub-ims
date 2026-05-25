@@ -180,7 +180,7 @@ export default function Teachers() {
   const clubLeaders       = teachers.filter(t => t.role === 'club_leader').length;
   const centreLeaders     = teachers.filter(t => t.role === 'centre_club_leader').length;
   const additional        = teachers.filter(t => t.role === 'additional').length;
-  const totalTraining     = teachers.filter(t => t.training_completed).length;
+  const totalTraining     = teachers.filter(t => t.training_completed === true).length;
   const totalSafeguarding = teachers.filter(t => t.safeguarding_done).length;
   const totalSurvey       = teachers.filter(t => t.survey_done).length;
 

@@ -36,7 +36,7 @@ const EMPTY_FORM = {
   sponsor_phone:'', learner_count:0, status:'enrolled',
   guidelines_signed:false, notes:'', mentor_id:'',
   enrollment_date:'', cohort:'RPF 2026',
-  hos_name:'', hos_phone:'', hos_email:''
+  hos_name:''
 };
 
 export default function Schools() {
@@ -110,8 +110,6 @@ const [hosList, setHosList] = useState([]);
       enrollment_date: school.enrollment_date ? school.enrollment_date.split('T')[0] : '',
       cohort: school.cohort || 'RPF 2026',
       hos_name: school.hos_name || '',
-      hos_phone: school.hos_phone || '',
-      hos_email: school.hos_email || '',
     });
     setShowModal(true);
   };
@@ -131,13 +129,6 @@ const [hosList, setHosList] = useState([]);
   if (!form.referral_source) errors.referral_source = 'Required';
   if (!form.learner_count || form.learner_count < 1) errors.learner_count = 'Must be at least 1';
   if (!form.hos_name?.trim()) errors.hos_name = form.type === 'school' ? 'Head of School required' : 'Centre Manager required';
-if (!form.hos_phone?.trim()) errors.hos_phone = 'Phone required';
-
-  // HOS — only required for schools, not community centres
-  if (form.type === 'school') {
-    if (!form.hos_name?.trim()) errors.hos_name = 'Required for schools';
-    if (!form.hos_phone?.trim()) errors.hos_phone = 'Required';
-  }
 
   return errors;
 };
@@ -473,41 +464,19 @@ const handleSave = async () => {
 <p style={styles.sectionLabel}>
   {form.type === 'school' ? '🏫 Head of School (Safeguarding Sponsor)' : '🏢 Centre Manager (Safeguarding Sponsor)'}
 </p>
-<div style={{...styles.formGrid, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr'}}>
-  <div style={{...styles.formGroup, gridColumn:'1/-1'}}>
+<div style={{marginBottom:'24px'}}>
+  <div style={styles.formGroup}>
     <label style={styles.label}>
-  {form.type === 'school' ? 'Select Head of School' : 'Select Centre Manager'}
-</label>
+      {form.type === 'school' ? 'Select Head of School' : 'Select Centre Manager'}
+    </label>
     <select style={styles.input} value={form.hos_name}
-      onChange={e => {
-        const hos = hosList.find(h => h.full_name === e.target.value);
-        setForm({...form,
-          hos_name: e.target.value,
-          hos_phone: hos?.phone || form.hos_phone,
-          hos_email: hos?.email || form.hos_email,
-          safeguarding_sponsor: e.target.value,
-        });
-      }}>
+      onChange={e => setForm({...form, hos_name: e.target.value, safeguarding_sponsor: e.target.value})}>
       <option value="">— Select HOS —</option>
       {hosList.map(h => (
-        <option key={h.id} value={h.full_name}>{h.full_name} — {h.school_name||'unassigned'}</option>
+        <option key={h.id} value={h.full_name}>{h.full_name} — {h.school_name||'—'}</option>
       ))}
     </select>
-  </div>
-  <div style={styles.formGroup}>
-    <label style={styles.label}>HOS Phone</label>
-    <input style={styles.input} value={form.hos_phone}
-      onChange={e=>setForm({...form,hos_phone:e.target.value})} />
-  </div>
-  <div style={styles.formGroup}>
-    <label style={styles.label}>HOS Email</label>
-    <input style={styles.input} value={form.hos_email}
-      onChange={e=>setForm({...form,hos_email:e.target.value})} />
-  </div>
-  <div style={styles.formGroup}>
-    <label style={styles.label}>Sponsor Phone</label>
-    <input style={styles.input} value={form.sponsor_phone}
-      onChange={e=>setForm({...form,sponsor_phone:e.target.value})} />
+    {formErrors.hos_name && <span style={{color:'#e74c3c',fontSize:'11px'}}>{formErrors.hos_name}</span>}
   </div>
 </div>
 
