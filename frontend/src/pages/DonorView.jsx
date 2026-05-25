@@ -242,7 +242,7 @@ export default function DonorView() {
             {/* NEW hero stats */}
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'12px', marginTop:'24px'}}>
               {[
-                { value: parseInt(data.schools.active||0) + parseInt(data.schools.centres||0), label:'Coding Clubs' },
+                { value: parseInt(data.schools.total||0), label:'Coding Clubs' },
                 { value: parseInt(data.schools.learners||0).toLocaleString(), label:'Learners Registered' },
                 { value: schoolClubLeaders, label:'Club Leaders (Schools)' },
                 { value: centreClubLeaders, label:'Club Leaders (Centres)' },

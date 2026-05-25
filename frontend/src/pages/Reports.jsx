@@ -120,7 +120,7 @@ export default function Reports() {
       rows = [
         ['Total Schools',data.schools.total],
         ['Community Centres',data.schools.centres],
-        ['Total Coding Clubs',parseInt(data.schools.active||0)+parseInt(data.schools.centres||0)],
+        ['Total Coding Clubs',parseInt(data.schools.total||0)],
         ['Active Clubs',data.schools.active],
         ['Total Learners',data.schools.learners],
         ['Active Mentors',data.mentors.active],
@@ -160,7 +160,7 @@ export default function Reports() {
 
   // Summary chart data
   const totalCodingClubs = data?.schools
-    ? parseInt(data.schools.active||0) + parseInt(data.schools.centres||0)
+    ? parseInt(data.schools.total||0)
     : 0;
 
   const summaryPieData = data?.schools ? [
