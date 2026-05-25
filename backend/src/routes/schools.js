@@ -118,7 +118,8 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
   club_id, official_name, type, county, subcounty_area,
   referral_source, club_leader_name, club_leader_phone, club_leader_email,
   safeguarding_sponsor, sponsor_phone, learner_count, status,
-  guidelines_signed, notes, mentor_id, enrollment_date, cohort
+  guidelines_signed, notes, mentor_id, enrollment_date, cohort,
+  hos_name, hos_phone, hos_email
 } = req.body;
 
    const result = await pool.query(`
@@ -143,8 +144,8 @@ RETURNING *
     await logAudit(req, 'UPDATE', 'schools_and_centres', req.params.id, `Updated school ${req.params.id} in schools_and_centres`);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Update school error:', err.message);
-    res.status(500).json({ error: 'Failed to update school' });
+    console.error('School update error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
