@@ -80,11 +80,11 @@ export default function Dashboard() {
       {/* Top stat cards */}
       <div style={styles.cards}>
         {[
-          { label:'CODE CLUBS REGISTERED', value: schoolsOnly.length, sub:`${active} active clubs`, color:'#69A9C9' },
-          { label:'COMMUNITY CENTRES', value: centres.length, sub:'3 counties', color:'#F7941D' },
-          { label:'LEARNERS REACHED', value: totalLearners.toLocaleString(), sub:'across all schools', color:'#1eb457' },
-          { label:'ACTIVE MENTORS', value: activeMentors, sub:`${onLeave} on leave`, color:'#9b59b6' },
-          { label:'COUNTY COVERAGE', value: 3, sub:"Kiambu · Kajiado · Murang'a", color:'#F5C518' },
+          { label:'TOTAL CODING CLUBS',   value: schools.length,                   sub:'active clubs running',        color:'#69A9C9' },
+          { label:'SCHOOLS CODING CLUBS', value: schoolsOnly.length,               sub:'across 3 counties',           color:'#1eb457' },
+          { label:'CENTRES CODING CLUBS', value: centres.length,                   sub:'community centres',           color:'#F7941D' },
+          { label:'LEARNERS REACHED',     value: totalLearners.toLocaleString(),   sub:'across all clubs',            color:'#9b59b6' },
+          { label:'COUNTY COVERAGE',      value: 3,                                sub:"Kiambu · Kajiado · Murang'a", color:'#F5C518' },
         ].map(card => (
           <div key={card.label} style={{...styles.card, borderTop:`4px solid ${card.color}`}}>
             <p style={styles.cardLabel}>{card.label}</p>
