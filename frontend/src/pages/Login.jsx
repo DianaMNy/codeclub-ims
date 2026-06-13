@@ -72,11 +72,11 @@ export default function Login() {
               position: 'absolute', inset: 0,
               width: '100%', height: '100%',
               objectFit: 'cover',
-              opacity: 0.35,
+              opacity: 0.75,
             }}
           />
-          {/* Dark overlay */}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.50)' }} />
+          {/* Tinted overlay with blur */}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,101,141,0.20)', backdropFilter: 'blur(6px)' }} />
 
           {/* Content */}
           <div style={{
@@ -104,11 +104,12 @@ export default function Login() {
 
             {/* Code snippet card */}
             <div style={{
-              background: 'rgba(0,0,0,0.80)',
+              background: 'rgba(0,101,141,0.15)',
+              backdropFilter: 'blur(12px)',
               borderRadius: '16px',
-              padding: '20px 24px',
+              padding: '32px',
               maxWidth: '420px',
-              border: '1px solid rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.20)',
             }}>
               {/* Terminal dots */}
               <div style={{ display: 'flex', gap: '7px', marginBottom: '16px' }}>
