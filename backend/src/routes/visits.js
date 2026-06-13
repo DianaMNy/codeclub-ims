@@ -102,13 +102,20 @@ router.post('/', requireAuth, async (req, res) => {
     // STEP C — Auto-populate PATHWAY PROGRESS
     if (pathway_id) {
       try {
-        await pool.query(
-          `INSERT INTO pathway_progress
-             (school_id, teacher_id, pathway, completed, date_recorded, level_reached, started_at)
-           VALUES ($1, $2, $3, false, $4, $5, NOW())
-           ON CONFLICT DO NOTHING`,
-          [school_id, teacher_id || null, pathway_id, date_of_visit || new Date().toISOString().split('T')[0], scratch_level || null]
+        const pathwayResult = await pool.query(
+          'SELECT label FROM pathways WHERE id = $1',
+          [pathway_id]
         );
+        const pathwayLabel = pathwayResult.rows[0]?.label;
+        if (pathwayLabel) {
+          await pool.query(
+            `INSERT INTO pathway_progress
+               (school_id, teacher_id, pathway, completed, date_recorded, started_at)
+             VALUES ($1, $2, $3, false, $4, NOW())
+             ON CONFLICT DO NOTHING`,
+            [school_id, teacher_id || null, pathwayLabel, date_of_visit || new Date().toISOString().split('T')[0]]
+          );
+        }
       } catch (err) { console.error('Pathway auto-populate error:', err.message); }
     }
     if (creating_projects && project_id) {
