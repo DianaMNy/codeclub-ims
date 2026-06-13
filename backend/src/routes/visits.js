@@ -106,17 +106,45 @@ router.post('/', requireAuth, async (req, res) => {
           'SELECT label FROM pathways WHERE id = $1',
           [pathway_id]
         );
-        const pathwayLabel = pathwayResult.rows[0]?.label;
-        if (pathwayLabel) {
+        const pathwayLabel = pathwayResult.rows[0]?.label?.trim().toLowerCase();
+
+        // Map pathway labels to allowed constraint values
+        const pathwayMap = {
+          'scratch fundamentals': 'scratch',
+          'scratch': 'scratch',
+          'web design': 'web_design',
+          'web_design': 'web_design',
+          'python basics': 'python',
+          'python': 'python',
+          'physical computing': 'physical_computing',
+          'physical_computing': 'physical_computing',
+          'digital citizenship': 'digital_citizenship',
+          'digital_citizenship': 'digital_citizenship',
+          'game design': 'game_design',
+          'game design ': 'game_design',
+          'game_design': 'game_design',
+          'ai & machine learning': 'ai_ml',
+          'ai_ml': 'ai_ml',
+        };
+
+        const pathwayCode = pathwayMap[pathwayLabel];
+
+        if (pathwayCode) {
           await pool.query(
             `INSERT INTO pathway_progress
                (school_id, teacher_id, pathway, completed, date_recorded, started_at)
              VALUES ($1, $2, $3, false, $4, NOW())
              ON CONFLICT DO NOTHING`,
-            [school_id, teacher_id || null, pathwayLabel, date_of_visit || new Date().toISOString().split('T')[0]]
+            [school_id, teacher_id || null, pathwayCode,
+             date_of_visit || new Date().toISOString().split('T')[0]]
           );
+          console.log('Pathway auto-populate success:', pathwayCode);
+        } else {
+          console.error('Pathway mapping not found for label:', pathwayLabel);
         }
-      } catch (err) { console.error('Pathway auto-populate error:', err.message); }
+      } catch (err) {
+        console.error('Pathway auto-populate error:', err.message);
+      }
     }
     if (creating_projects && project_id) {
       try {
