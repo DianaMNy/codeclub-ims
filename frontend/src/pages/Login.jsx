@@ -99,7 +99,7 @@ export default function Login() {
 
             {/* Subtitle */}
             <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.72)', lineHeight: 1.7, maxWidth: '420px', marginBottom: '40px' }}>
-              Empowering the next generation of innovators through coding — across Kiambu, Kajiado &amp; Murang'a.
+              Empowering the next generation of innovators through coding across Kenya.
             </p>
 
             {/* Code snippet card */}
