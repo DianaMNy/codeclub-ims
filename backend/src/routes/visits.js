@@ -75,14 +75,41 @@ router.post('/', requireAuth, async (req, res) => {
     const visit_number = parseInt(visitCount.rows[0].count) + 1;
     const result = await pool.query(`INSERT INTO session_observations (school_id, mentor_id, teacher_id, visit_number, is_first_visit, date_of_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36) RETURNING *`,
       [school_id, mentorId, teacher_id||null, visit_number, is_first_visit||false, date_of_visit, engagement_type, latitude||null, longitude||null, gps_raw||null, club_running??true, not_running_reason||null, activation_actions||null, club_day||null, time_band||null, device_count||0, total_learners||0, male_learners||0, female_learners||0, engagement_rating||null, pathway_id||null, scratch_level||null, creating_projects||false, project_id||null, project_notes||null, observations||null, phone_call_notes||null, challenges||null, club_leader_confidence||null, actions_agreed||null, recommended_star_club||false, star_club_reason||null, flag_school||false, flag_reason||null, next_visit_date||null, other_details||null]);
-    if (flag_school || club_running === false) {
-      try { await pool.query(`INSERT INTO flags (school_id, mentor_id, flag_type, reason, status, flagged_at) VALUES ($1,$2,'visit_observation',$3,'open',$4)`, [school_id, mentorId, flag_reason||not_running_reason||'Club not running', date_of_visit]); } catch(e) {}
+    // STEP A — Auto-populate FLAGS
+    if (flag_school) {
+      try {
+        await pool.query(
+          `INSERT INTO flags (school_id, mentor_id, flag_type, reason, status, escalation_level, flagged_at)
+           VALUES ($1, $2, 'observation', $3, 'open', 'low', NOW())`,
+          [school_id, mentorId, flag_reason || 'Flagged during M&E visit']
+        );
+      } catch (err) { console.error('Flag auto-populate error:', err.message); }
     }
+
+    // STEP B — Auto-populate STAR CLUB
     if (recommended_star_club) {
-      try { await pool.query(`INSERT INTO star_club_evaluations (school_id, mentor_id, recommended, reason, date_recorded) VALUES ($1,$2,true,$3,$4)`, [school_id, mentorId, star_club_reason||'Recommended via session observation', date_of_visit]); } catch(e) {}
+      try {
+        await pool.query(
+          `INSERT INTO star_club_evaluations
+             (school_id, mentor_id, evaluation_name, evaluator_comments,
+              recognition_level, overall_score, follow_up_needed, evaluation_date)
+           VALUES ($1, $2, 'M&E Nomination', $3, 'nominated', 0, false, $4)`,
+          [school_id, mentorId, star_club_reason || null, date_of_visit || new Date().toISOString().split('T')[0]]
+        );
+      } catch (err) { console.error('Star club auto-populate error:', err.message); }
     }
-    if (pathway_id && scratch_level) {
-      try { await pool.query(`INSERT INTO pathway_progress (school_id, pathway_id, level_reached, date_recorded) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [school_id, pathway_id, scratch_level, date_of_visit]); } catch(e) {}
+
+    // STEP C — Auto-populate PATHWAY PROGRESS
+    if (pathway_id) {
+      try {
+        await pool.query(
+          `INSERT INTO pathway_progress
+             (school_id, teacher_id, pathway, completed, date_recorded, level_reached, started_at)
+           VALUES ($1, $2, $3, false, $4, $5, NOW())
+           ON CONFLICT DO NOTHING`,
+          [school_id, teacher_id || null, pathway_id, date_of_visit || new Date().toISOString().split('T')[0], scratch_level || null]
+        );
+      } catch (err) { console.error('Pathway auto-populate error:', err.message); }
     }
     if (creating_projects && project_id) {
       try {

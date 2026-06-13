@@ -103,7 +103,7 @@ const fetchPathwayOptions = async () => {
 };
 
 const INIT = {
-  school_id:'', teacher_id:'', date_of_visit:new Date().toISOString().split('T')[0],
+  school_id:'', teacher_id:'', mentor_id:'', date_of_visit:new Date().toISOString().split('T')[0],
   engagement_type:'Physical Visit', latitude:'', longitude:'',
   club_running:'yes', not_running_reason:'', activation_actions:'',
   club_day:'', time_band:'', device_count:'', total_learners:'',
@@ -136,6 +136,7 @@ export default function MandE() {
   const [visits, setVisits]       = useState([]);
   const [pathways, setPathways]   = useState([]);
   const [teachers, setTeachers]   = useState([]);
+  const [mentors, setMentors]     = useState([]);
   const [deviceAudits, setDeviceAudits] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [auditLoading, setAuditLoading] = useState(true);
@@ -161,12 +162,13 @@ export default function MandE() {
     setLoading(true);
     setAuditLoading(true);
     try {
-      const [s, v, t, p, a] = await Promise.allSettled([
+      const [s, v, t, p, a, m] = await Promise.allSettled([
         api.get('/schools'),
         api.get('/visits'),
         api.get('/teachers'),
         fetchPathwayOptions(),
         api.get('/device-audits'),
+        api.get('/mentors'),
       ]);
       if (s.status === 'fulfilled') setSchools(Array.isArray(s.value.data) ? s.value.data : []);
       else console.error('Failed to load schools:', s.reason);
@@ -182,6 +184,9 @@ export default function MandE() {
 
       if (a.status === 'fulfilled') setDeviceAudits(Array.isArray(a.value.data) ? a.value.data : []);
       else console.error('Failed to load device audits:', a.reason);
+
+      if (m.status === 'fulfilled') setMentors(Array.isArray(m.value.data) ? m.value.data : []);
+      else console.error('Failed to load mentors:', m.reason);
     } catch(e) { console.error(e); }
     finally { setLoading(false); setAuditLoading(false); }
   };
@@ -203,7 +208,7 @@ export default function MandE() {
 
   const openEdit = (v) => {
     setForm({
-      school_id: v.school_id ? String(v.school_id) : '', teacher_id: v.teacher_id ? String(v.teacher_id) : '',
+      school_id: v.school_id ? String(v.school_id) : '', teacher_id: v.teacher_id ? String(v.teacher_id) : '', mentor_id: v.mentor_id ? String(v.mentor_id) : '',
       date_of_visit: v.date_of_visit?.split('T')[0]||'',
       engagement_type: v.engagement_type||'Physical Visit',
       latitude: v.latitude||'', longitude: v.longitude||'',
@@ -500,8 +505,17 @@ export default function MandE() {
             <input style={inp} type="date" value={form.date_of_visit} onChange={upd('date_of_visit')}/>
           </div>
           <div>
-            <label style={lbl}>Mentor</label>
-            <input style={{...inp,background:'#f8f9fa',color:'#888'}} value={user.full_name||'Current Mentor'} readOnly/>
+            <label style={lbl}>Field Mentor</label>
+            {(user.role === 'admin' || user.role === 'programme_coordinator') ? (
+              <select style={inp} value={form.mentor_id} onChange={upd('mentor_id')}>
+                <option value="">— Select Mentor —</option>
+                {mentors.map(m => (
+                  <option key={m.id} value={m.id}>{m.full_name}</option>
+                ))}
+              </select>
+            ) : (
+              <input style={{...inp,background:'#f8f9fa',color:'#888'}} value={user.full_name||'Current Mentor'} readOnly/>
+            )}
           </div>
         </div>
 
