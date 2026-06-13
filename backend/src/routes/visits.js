@@ -69,7 +69,7 @@ router.get('/pathways-with-projects', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   const { mentor_id: tokenMentorId, role } = req.user;
   try {
-    const { school_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, showcase_photo, showcase_status, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
+    const { school_id, mentor_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, showcase_photo, showcase_status, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
     const mentorId = (role === 'admin' || role === 'programme_coordinator') ? req.body.mentor_id || tokenMentorId : tokenMentorId;
     const visitCount = await pool.query('SELECT COUNT(*) FROM session_observations WHERE school_id = $1', [school_id]);
     const visit_number = parseInt(visitCount.rows[0].count) + 1;
