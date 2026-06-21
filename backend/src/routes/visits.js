@@ -69,7 +69,7 @@ router.get('/pathways-with-projects', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   const { mentor_id: tokenMentorId, role } = req.user;
   try {
-    const { school_id, mentor_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, showcase_photo, showcase_status, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
+    const { school_id, mentor_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, pathway_completed, creating_projects, project_id, project_notes, showcase_photo, showcase_status, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
     const mentorId = (role === 'admin' || role === 'programme_coordinator') ? req.body.mentor_id || tokenMentorId : tokenMentorId;
     const visitCount = await pool.query('SELECT COUNT(*) FROM session_observations WHERE school_id = $1', [school_id]);
     const visit_number = parseInt(visitCount.rows[0].count) + 1;
@@ -143,13 +143,14 @@ router.post('/', requireAuth, async (req, res) => {
         if (pathwayCode) {
           await pool.query(
             `INSERT INTO pathway_progress
-               (school_id, teacher_id, pathway, completed, date_recorded, started_at)
-             VALUES ($1, $2, $3, false, $4, NOW())
+               (school_id, teacher_id, pathway, completed, level_reached, date_recorded, started_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())
              ON CONFLICT DO NOTHING`,
             [school_id, teacher_id || null, pathwayCode,
+             pathway_completed ?? false, scratch_level || null,
              date_of_visit || new Date().toISOString().split('T')[0]]
           );
-          console.log('Pathway auto-populate success:', pathwayCode);
+          console.log('Pathway progress updated:', pathwayCode, 'completed:', pathway_completed);
         } else {
           console.error('Pathway mapping not found for label:', pathwayLabel);
         }
