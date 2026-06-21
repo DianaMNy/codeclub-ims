@@ -395,6 +395,19 @@ export default function Pathways() {
               <button style={styles.clearBtn} onClick={() => setMatrixCounty('')}>✕ Clear</button>
             )}
           </div>
+          {/* Legend */}
+          <div style={{display:'flex', gap:'18px', marginBottom:'12px', alignItems:'center', flexWrap:'wrap'}}>
+            {[
+              { color:'#1eb457', ring:'#eafaf1', label:'Completed' },
+              { color:'#F7941D', ring:'#fff5e6', label:'In Progress' },
+              { color:'#e2e8f0', ring:'none',    label:'Not Started' },
+            ].map(({ color, ring, label }) => (
+              <span key={label} style={{display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', color:'#666'}}>
+                <span style={{display:'inline-block', width:'11px', height:'11px', borderRadius:'50%', background:color, outline:ring !== 'none' ? `3px solid ${ring}` : 'none', flexShrink:0}} />
+                {label}
+              </span>
+            ))}
+          </div>
           <div style={{overflowX:'auto', overflowY:'auto', maxHeight:'480px', borderRadius:'8px', border:'1px solid #e2e8f0'}}>
             <table style={{borderCollapse:'collapse', width:'100%', minWidth:'560px'}}>
               <thead>
@@ -402,12 +415,20 @@ export default function Pathways() {
                   <th style={{...styles.th, position:'sticky', left:0, background:'#f8f9fa', zIndex:4, minWidth:'160px', borderRight:'2px solid #e2e8f0', boxShadow:'2px 0 4px rgba(0,0,0,0.04)'}}>
                     SCHOOL
                   </th>
-                  {Object.keys(PATHWAY_STRUCTURE).map(key => (
-                    <th key={key} title={PATHWAY_STRUCTURE[key].label}
-                      style={{...styles.th, textAlign:'center', minWidth:'52px', padding:'10px 6px'}}>
-                      <span style={{fontSize:'17px'}}>{PATHWAY_STRUCTURE[key].icon}</span>
-                    </th>
-                  ))}
+                  {Object.keys(PATHWAY_STRUCTURE).map(key => {
+                    const shortLabel = {
+                      scratch:'Scratch', web_design:'Web Design', python:'Python',
+                      physical_computing:'Physical', digital_citizenship:'Digital Cit.',
+                      game_design:'Game Design', ai_ml:'AI & ML',
+                    }[key] || PATHWAY_STRUCTURE[key].label;
+                    return (
+                      <th key={key} title={PATHWAY_STRUCTURE[key].label}
+                        style={{...styles.th, textAlign:'center', minWidth:'80px', padding:'10px 6px', whiteSpace:'normal', lineHeight:'1.3'}}>
+                        <span style={{fontSize:'16px', display:'block'}}>{PATHWAY_STRUCTURE[key].icon}</span>
+                        <span style={{fontSize:'11px', color:'#555', fontWeight:'600', display:'block', marginTop:'3px'}}>{shortLabel}</span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
