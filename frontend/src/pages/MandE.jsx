@@ -108,7 +108,7 @@ const INIT = {
   club_running:'yes', not_running_reason:'', activation_actions:'',
   club_day:'', time_band:'', device_count:'', total_learners:'',
   male_learners:'', female_learners:'', engagement_rating:'',
-  pathway_id:'', scratch_level:'', pathway_completed:false, creating_projects:'no',
+  pathway_id:'', scratch_level:'', creating_projects:'no',
   project_name:'', project_notes:'', observations:'', phone_call_notes:'',
   challenges:'', club_leader_confidence:'', actions_agreed:'',
   recommended_star_club:'no', star_club_reason:'',
@@ -150,7 +150,6 @@ export default function MandE() {
   const [auditForm, setAuditForm] = useState({ ...AUDIT_INIT });
   const [historySchool, setHistorySchool] = useState(null);
   const [historyVisits, setHistoryVisits] = useState([]);
-  const [projectOtherMode, setProjectOtherMode] = useState(false);
   const [filterSchool, setFilterSchool]   = useState('');
   const [auditFilterSchool, setAuditFilterSchool] = useState('');
   const [search, setSearch]               = useState('');
@@ -202,17 +201,12 @@ export default function MandE() {
   const visitCountForSchool = visits.filter(v => sameId(v.school_id, form.school_id)).length;
 
   const openAdd = () => {
-    setProjectOtherMode(false);
     setForm({ ...INIT, date_of_visit: new Date().toISOString().split('T')[0] });
     setEditId(null);
     setView('form');
   };
 
   const openEdit = (v) => {
-    const editPathway = pathways.find(p => sameId(p.id, v.pathway_id) || sameId(p.key, v.pathway_id));
-    const editProjects = getPathwayProjects(editPathway);
-    const isOther = !!(v.project_notes && v.project_notes !== 'Not yet' && !editProjects.some(p => p.name === v.project_notes));
-    setProjectOtherMode(isOther);
     setForm({
       school_id: v.school_id ? String(v.school_id) : '', teacher_id: v.teacher_id ? String(v.teacher_id) : '', mentor_id: v.mentor_id ? String(v.mentor_id) : '',
       date_of_visit: v.date_of_visit?.split('T')[0]||'',
@@ -226,7 +220,6 @@ export default function MandE() {
       male_learners: v.male_learners||'', female_learners: v.female_learners||'',
       engagement_rating: v.engagement_rating||'',
       pathway_id: v.pathway_id ? String(v.pathway_id) : (v.pathway || ''), scratch_level: v.scratch_level||'',
-      pathway_completed: v.pathway_completed ?? false,
       creating_projects: v.creating_projects ? 'yes' : 'no',
       project_name: v.project_id||'', project_notes: v.project_notes||'',
       observations: v.observations||'', phone_call_notes: v.phone_call_notes||'',
@@ -615,7 +608,7 @@ export default function MandE() {
         <div style={sec}>📚 Section 5 — Learning Progress</div>
         <div style={row}>
           <label style={lbl}>Pathway being followed</label>
-          <select style={inp} value={form.pathway_id} onChange={e=>{ setProjectOtherMode(false); setForm(f=>({...f,pathway_id:e.target.value,scratch_level:'',project_name:'',project_notes:''})); }}>
+          <select style={inp} value={form.pathway_id} onChange={e=>setForm(f=>({...f,pathway_id:e.target.value,scratch_level:'',project_name:''}))}>
             <option value="">— Select pathway —</option>
             {pathways.map(p=>(
               <option key={p.id || p.key} value={p.id || p.key}>
@@ -625,65 +618,15 @@ export default function MandE() {
           </select>
         </div>
         <div style={row}>
-          <label style={lbl}>Level Reached</label>
+          <label style={lbl}>What Scratch level have learners reached?</label>
           <select style={inp} value={form.scratch_level} onChange={upd('scratch_level')} disabled={!form.pathway_id}>
-            <option value="">— {form.pathway_id ? 'Select level' : 'Select a pathway first'} —</option>
-            {selectedPathwayLevels.filter(l => ['l1','l2','l3'].includes(l.key)).map(level => (
-              <option key={level.key} value={level.name}>
+            <option value="">— {form.pathway_id?'Select level':'Select pathway first'} —</option>
+            {selectedPathwayLevels.map(level => (
+              <option key={level.key} value={level.label}>
                 {level.label} — {level.name}
               </option>
             ))}
-            {selectedPathwayLevels.some(l => l.key.startsWith('optional')) && (
-              <option disabled value="">── Optional Levels ──</option>
-            )}
-            {selectedPathwayLevels.filter(l => l.key.startsWith('optional')).map(level => {
-              const optNum = level.key.replace('optional_', '');
-              return (
-                <option key={level.key} value={level.name}>
-                  Level {optNum} (Optional) — {level.name}
-                </option>
-              );
-            })}
           </select>
-        </div>
-        <div style={row}>
-          <label style={lbl}>Status</label>
-          <select style={inp} value={form.pathway_completed ? 'completed' : 'in_progress'}
-            onChange={e => setForm(f => ({...f, pathway_completed: e.target.value === 'completed'}))}>
-            <option value="in_progress">🔄 In Progress</option>
-            <option value="completed">✅ Completed</option>
-          </select>
-        </div>
-        <div style={row}>
-          <label style={lbl}>Current Project</label>
-          <select
-            style={inp}
-            value={projectOtherMode ? '__other__' : (form.project_notes || '')}
-            onChange={e => {
-              const val = e.target.value;
-              if (val === '__other__') {
-                setProjectOtherMode(true);
-                setForm(f => ({...f, project_notes: ''}));
-              } else {
-                setProjectOtherMode(false);
-                setForm(f => ({...f, project_notes: val}));
-              }
-            }}
-            disabled={!form.pathway_id}>
-            <option value="">— {form.pathway_id ? 'Select project' : 'Select a pathway first'} —</option>
-            <option value="Not yet">Not yet</option>
-            {selectedPathwayProjects.map(p => (
-              <option key={p.id} value={p.name}>{p.name}</option>
-            ))}
-            <option value="__other__">Other (type below)</option>
-          </select>
-          {projectOtherMode && (
-            <input
-              style={{...inp, marginTop:'8px'}}
-              value={form.project_notes}
-              onChange={upd('project_notes')}
-              placeholder="Describe the project..."/>
-          )}
         </div>
         <div style={row}>
           <label style={lbl}>Are learners creating individual/peer projects?</label>
