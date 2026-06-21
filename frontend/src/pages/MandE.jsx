@@ -404,36 +404,142 @@ export default function MandE() {
       <button style={{...bdt,background:'#f0f0f0',color:'#333',width:'auto',padding:'10px 20px',marginBottom:'20px'}}
         onClick={()=>setView('list')}>← Back to observations</button>
       <h2 style={{margin:'0 0 4px',color:'#1a2332'}}>{historySchool?.official_name}</h2>
-      <p style={{margin:'0 0 24px',color:'#8a96a3'}}>{historyVisits.length} visits recorded</p>
+      <p style={{margin:'0 0 24px',color:'#8a96a3'}}>{historyVisits.length} visit{historyVisits.length !== 1 ? 's' : ''} recorded</p>
       {historyVisits.length === 0
         ? <p style={{color:'#888',textAlign:'center',padding:'40px'}}>No visits recorded yet.</p>
-        : historyVisits.map(v => (
-          <div key={v.id} style={{background:'#fff',borderRadius:'12px',padding:'20px',marginBottom:'16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px',flexWrap:'wrap'}}>
-              <span style={{background:'#1eb457',color:'#fff',padding:'4px 14px',borderRadius:'999px',fontWeight:'700',fontSize:'14px'}}>Visit {v.visit_number}</span>
-              <span style={{color:'#555',fontSize:'14px'}}>{v.date_of_visit ? new Date(v.date_of_visit).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</span>
-              {bdg(v.club_running?'#eafaf1':'#fdedec',v.club_running?'#1a8a4a':'#e74c3c',v.club_running?'✅ Running':'❌ Not running')}
-              {bdg(v.engagement_type==='Physical Visit'?'#eafaf1':'#f5eef8',v.engagement_type==='Physical Visit'?'#1a8a4a':'#8e44ad',v.engagement_type==='Physical Visit'?'🏫 Physical':'📞 Phone')}
+        : <>
+            {/* ── TIMELINE STRIP ────────────────────────────────────────────── */}
+            <div style={{background:'#fff',borderRadius:'12px',padding:'20px 24px',marginBottom:'20px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',overflowX:'auto'}}>
+              <div style={{display:'flex',alignItems:'flex-start',minWidth:'max-content'}}>
+                {historyVisits.map((v, i) => {
+                  const dotColor = v.creating_projects ? '#1eb457' : v.pathway_name ? '#F7941D' : '#cbd5e0';
+                  const ringColor = v.creating_projects ? '#eafaf1' : v.pathway_name ? '#fff5e6' : 'transparent';
+                  const shortName = v.pathway_name
+                    ? v.pathway_name.replace(' Fundamentals','').replace(' Basics','').replace(' Computing','').replace(' Citizenship','').replace(' & Machine Learning','')
+                    : '';
+                  const dateLabel = v.date_of_visit ? new Date(v.date_of_visit).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : '';
+                  return (
+                    <div key={v.id} style={{display:'flex',alignItems:'flex-start',flexShrink:0}}>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'center',width:'80px'}}>
+                        <span style={{fontSize:'10px',fontWeight:'700',color:'#8a96a3',marginBottom:'4px',whiteSpace:'nowrap'}}>Visit {v.visit_number}</span>
+                        <div
+                          title={`${v.pathway_name||'No pathway'} · click to jump`}
+                          onClick={() => {
+                            const el = document.getElementById(`vcard-${v.id}`);
+                            if (el) {
+                              el.scrollIntoView({behavior:'smooth',block:'center'});
+                              el.style.boxShadow = '0 0 0 3px #1eb457, 0 2px 8px rgba(0,0,0,0.06)';
+                              setTimeout(() => { el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }, 1300);
+                            }
+                          }}
+                          style={{width:'20px',height:'20px',borderRadius:'50%',background:dotColor,outline:ringColor!=='transparent'?`3px solid ${ringColor}`:'none',cursor:'pointer',transition:'transform 0.15s'}}
+                        />
+                        <div style={{marginTop:'7px',textAlign:'center',maxWidth:'76px'}}>
+                          {v.pathway_icon && <span style={{fontSize:'13px'}}>{v.pathway_icon}</span>}
+                          {shortName && <div style={{fontSize:'10px',color:'#555',lineHeight:'1.3',marginTop:'2px',wordBreak:'break-word'}}>{shortName}</div>}
+                          <div style={{fontSize:'10px',color:'#aaa',marginTop:'2px'}}>{dateLabel}</div>
+                        </div>
+                      </div>
+                      {i < historyVisits.length - 1 && (
+                        <div style={{width:'20px',height:'2px',background:'#e2e8f0',marginTop:'27px',flexShrink:0}} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'8px',fontSize:'14px',color:'#555',marginBottom:'12px'}}>
-              <div><b>Mentor:</b> {v.mentor_name||'—'}</div>
-              <div><b>Learners:</b> {v.total_learners||0} ({v.male_learners||0}M/{v.female_learners||0}F)</div>
-              <div><b>Engagement:</b> {v.engagement_rating||'—'}</div>
-              <div><b>Pathway:</b> {v.pathway_name||'—'}</div>
-              <div><b>Level:</b> {v.scratch_level||'—'}</div>
-              <div><b>Confidence:</b> {v.club_leader_confidence||'—'}</div>
-              <div><b>Devices:</b> {v.device_count||0}</div>
-            </div>
-            {v.observations && <div style={{background:'#f8f9fa',padding:'10px',borderRadius:'8px',fontSize:'14px',color:'#555',marginBottom:'8px'}}><b>Observations:</b> {v.observations}</div>}
-            {v.challenges && <div style={{background:'#f8f9fa',padding:'10px',borderRadius:'8px',fontSize:'14px',color:'#555',marginBottom:'8px'}}><b>Challenges:</b> {v.challenges}</div>}
-            {v.actions_agreed && <div style={{background:'#f8f9fa',padding:'10px',borderRadius:'8px',fontSize:'14px',color:'#555',marginBottom:'8px'}}><b>Actions:</b> {v.actions_agreed}</div>}
-            <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
-              {v.recommended_star_club && bdg('#fef9e7','#a0720a','⭐ Star Club')}
-              {v.flag_school && bdg('#fdedec','#e74c3c','🚩 Flagged')}
-              {v.next_visit_date && bdg('#e8f4fd','#2980b9',`📅 Next: ${new Date(v.next_visit_date).toLocaleDateString('en-GB')}`)}
-            </div>
-          </div>
-        ))
+
+            {/* ── VISIT DETAIL CARDS ────────────────────────────────────────── */}
+            {historyVisits.map(v => {
+              const isCompleted = v.creating_projects === true;
+              const hasPathway = !!v.pathway_name;
+              const statCell = (label, value) => (
+                <div key={label} style={{background:'#f8f9fa',borderRadius:'8px',padding:'10px 12px'}}>
+                  <div style={{fontSize:'10px',fontWeight:'700',color:'#8a96a3',letterSpacing:'0.5px',textTransform:'uppercase',marginBottom:'3px'}}>{label}</div>
+                  <div style={{fontSize:'13px',color:'#1a2332',fontWeight:'500'}}>{value}</div>
+                </div>
+              );
+              return (
+                <div key={v.id} id={`vcard-${v.id}`} style={{background:'#fff',borderRadius:'12px',marginBottom:'16px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',overflow:'hidden',transition:'box-shadow 0.4s'}}>
+                  {/* TOP ROW */}
+                  <div style={{padding:'14px 20px 12px',borderBottom:'1px solid #f0f0f0',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                    <span style={{background:'#1eb457',color:'#fff',padding:'4px 14px',borderRadius:'999px',fontWeight:'700',fontSize:'14px'}}>Visit {v.visit_number}</span>
+                    <span style={{color:'#555',fontSize:'14px',fontWeight:'500'}}>
+                      {v.date_of_visit ? new Date(v.date_of_visit).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
+                    </span>
+                    {hasPathway && bdg(isCompleted?'#eafaf1':'#fef9e7',isCompleted?'#1a8a4a':'#a0720a',isCompleted?'✅ Completed':'🔄 In Progress')}
+                    {bdg(v.club_running?'#eafaf1':'#fdedec',v.club_running?'#1a8a4a':'#e74c3c',v.club_running?'✅ Running':'❌ Not running')}
+                    {bdg(v.engagement_type==='Physical Visit'?'#eafaf1':'#f5eef8',v.engagement_type==='Physical Visit'?'#1a8a4a':'#8e44ad',v.engagement_type==='Physical Visit'?'🏫 Physical':'📞 Phone')}
+                  </div>
+
+                  <div style={{padding:'16px 20px'}}>
+                    {/* STAT GRID — row 1 */}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:'10px',marginBottom:'10px'}}>
+                      {statCell('Mentor', v.mentor_name || '—')}
+                      {statCell('Pathway', v.pathway_name ? `${v.pathway_icon||''} ${v.pathway_name}` : '—')}
+                      {statCell('Level', v.scratch_level || '—')}
+                      {statCell('Engagement', v.engagement_rating || '—')}
+                    </div>
+
+                    {/* STAT GRID — row 2 */}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:'10px',marginBottom:'14px'}}>
+                      {statCell('Learners', `${v.total_learners||0} total · ${v.male_learners||0}M / ${v.female_learners||0}F`)}
+                      {statCell('Club Day', v.club_day || '—')}
+                      {statCell('Confidence', v.club_leader_confidence || '—')}
+                      {statCell('Devices', v.device_count ?? '—')}
+                    </div>
+
+                    {/* PROJECT SECTION */}
+                    {(v.project_notes || v.project_id || v.creating_projects) && (
+                      <div style={{background:'#f0f7ff',borderRadius:'8px',padding:'12px 14px',marginBottom:'12px',borderLeft:'3px solid #69A9C9'}}>
+                        <div style={{fontSize:'10px',fontWeight:'700',color:'#2c6e9e',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'6px'}}>📦 Project</div>
+                        {v.project_id && <div style={{fontSize:'13px',color:'#1a2332',fontWeight:'500',marginBottom:v.project_notes?'4px':0}}>{v.project_id}</div>}
+                        {v.project_notes && <div style={{fontSize:'13px',color:'#555',lineHeight:'1.5'}}>{v.project_notes}</div>}
+                        {!v.project_id && !v.project_notes && <div style={{fontSize:'13px',color:'#8a96a3',fontStyle:'italic'}}>Project work recorded this visit</div>}
+                      </div>
+                    )}
+
+                    {/* NOTES PANEL */}
+                    {(v.observations || v.challenges || v.actions_agreed || v.phone_call_notes) && (
+                      <div style={{background:'#f8f9fa',borderRadius:'8px',padding:'14px 16px',marginBottom:'12px',display:'flex',flexDirection:'column',gap:'10px'}}>
+                        {v.observations && (
+                          <div>
+                            <div style={{fontSize:'10px',fontWeight:'700',color:'#8a96a3',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Observations</div>
+                            <div style={{fontSize:'13px',color:'#555',lineHeight:'1.5'}}>{v.observations}</div>
+                          </div>
+                        )}
+                        {v.challenges && (
+                          <div>
+                            <div style={{fontSize:'10px',fontWeight:'700',color:'#8a96a3',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Challenges</div>
+                            <div style={{fontSize:'13px',color:'#555',lineHeight:'1.5'}}>{v.challenges}</div>
+                          </div>
+                        )}
+                        {v.actions_agreed && (
+                          <div>
+                            <div style={{fontSize:'10px',fontWeight:'700',color:'#8a96a3',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Actions Agreed</div>
+                            <div style={{fontSize:'13px',color:'#555',lineHeight:'1.5'}}>{v.actions_agreed}</div>
+                          </div>
+                        )}
+                        {v.phone_call_notes && (
+                          <div>
+                            <div style={{fontSize:'10px',fontWeight:'700',color:'#8a96a3',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'4px'}}>Phone Call Notes</div>
+                            <div style={{fontSize:'13px',color:'#555',lineHeight:'1.5'}}>{v.phone_call_notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* BOTTOM BADGES */}
+                    <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                      {v.recommended_star_club && bdg('#fef9e7','#a0720a','⭐ Star Club')}
+                      {v.flag_school && bdg('#fdedec','#e74c3c','🚩 Flagged')}
+                      {v.next_visit_date && bdg('#e8f4fd','#2980b9',`📅 Next: ${new Date(v.next_visit_date).toLocaleDateString('en-GB')}`)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
       }
     </Layout>
   );
