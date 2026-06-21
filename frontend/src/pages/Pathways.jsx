@@ -83,6 +83,8 @@ export default function Pathways() {
   const [showcaseCounty, setShowcaseCounty] = useState('');
   const [showcasePathwayFilter, setShowcasePathwayFilter] = useState('');
   const [showcaseStatus, setShowcaseStatus] = useState('all');
+  const [matrixCounty, setMatrixCounty] = useState('');
+  const [matrixPopup, setMatrixPopup] = useState(null);
 
   const fetchProgress = () => api.get('/pathways').then(r => setProgress(r.data));
   const fetchSyllabus = () => api.get('/pathways/syllabus').then(r => setCustomPathways(r.data)).catch(() => {});
@@ -289,7 +291,7 @@ export default function Pathways() {
       </div>
 
       {/* ── OVERVIEW TAB ──────────────────────────────────────────────────────── */}
-      {activeTab === 'overview' && (
+      {activeTab === 'overview' && (<>
         <div style={styles.section}>
           <div style={styles.sectionHead}>
             <div>
@@ -375,7 +377,107 @@ export default function Pathways() {
             </table></div>
           )}
         </div>
-      )}
+
+        {/* ── COVERAGE MATRIX ───────────────────────────────────────────────────── */}
+        <div style={styles.section}>
+          <div style={{marginBottom:'16px'}}>
+            <p style={{...styles.sectionTitle, fontSize:'16px', margin:'0 0 4px 0'}}>🗺️ Pathway Coverage Matrix</p>
+            <p style={styles.sectionSub}>Which schools have started which pathways</p>
+          </div>
+          <div style={{display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center'}}>
+            <select style={styles.filterSelect} value={matrixCounty} onChange={e => setMatrixCounty(e.target.value)}>
+              <option value="">All Counties</option>
+              {[...new Set(schools.map(s => s.county).filter(Boolean))].sort().map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            {matrixCounty && (
+              <button style={styles.clearBtn} onClick={() => setMatrixCounty('')}>✕ Clear</button>
+            )}
+          </div>
+          <div style={{overflowX:'auto', overflowY:'auto', maxHeight:'480px', borderRadius:'8px', border:'1px solid #e2e8f0'}}>
+            <table style={{borderCollapse:'collapse', width:'100%', minWidth:'560px'}}>
+              <thead>
+                <tr style={{background:'#f8f9fa', position:'sticky', top:0, zIndex:3}}>
+                  <th style={{...styles.th, position:'sticky', left:0, background:'#f8f9fa', zIndex:4, minWidth:'160px', borderRight:'2px solid #e2e8f0', boxShadow:'2px 0 4px rgba(0,0,0,0.04)'}}>
+                    SCHOOL
+                  </th>
+                  {Object.keys(PATHWAY_STRUCTURE).map(key => (
+                    <th key={key} title={PATHWAY_STRUCTURE[key].label}
+                      style={{...styles.th, textAlign:'center', minWidth:'52px', padding:'10px 6px'}}>
+                      <span style={{fontSize:'17px'}}>{PATHWAY_STRUCTURE[key].icon}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const matrixSchools = schools.filter(s => !matrixCounty || s.county === matrixCounty);
+                  if (matrixSchools.length === 0) return (
+                    <tr><td colSpan={8} style={{padding:'32px', textAlign:'center', color:'#888', fontSize:'13px'}}>
+                      No schools match the selected county.
+                    </td></tr>
+                  );
+                  return matrixSchools.map((school, i) => (
+                    <tr key={school.id} style={{background:i%2===0?'#fff':'#fafafa', borderBottom:'1px solid #f0f0f0'}}>
+                      <td style={{...styles.td, position:'sticky', left:0, background:i%2===0?'#fff':'#fafafa', zIndex:1, borderRight:'2px solid #e2e8f0', boxShadow:'2px 0 4px rgba(0,0,0,0.03)', fontWeight:'500', color:'#1a2332', maxWidth:'200px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                        {school.official_name}
+                      </td>
+                      {Object.keys(PATHWAY_STRUCTURE).map(key => {
+                        const record = progress.find(p => String(p.school_id) === String(school.id) && p.pathway === key);
+                        if (!record) return (
+                          <td key={key} style={{...styles.td, textAlign:'center', padding:'10px 6px'}}>
+                            <span style={{display:'inline-block', width:'13px', height:'13px', borderRadius:'50%', background:'#e2e8f0'}} />
+                          </td>
+                        );
+                        const dotColor = record.completed ? '#1eb457' : '#F7941D';
+                        const ringColor = record.completed ? '#eafaf1' : '#fff5e6';
+                        return (
+                          <td key={key} style={{...styles.td, textAlign:'center', padding:'10px 6px', cursor:'pointer'}}
+                            onClick={e => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMatrixPopup({ x: rect.left + rect.width/2, y: rect.bottom, school: school.official_name, pathwayKey: key, record });
+                            }}>
+                            <span style={{display:'inline-block', width:'13px', height:'13px', borderRadius:'50%', background:dotColor, outline:`3px solid ${ringColor}`}} />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
+          </div>
+
+          {matrixPopup && (
+            <>
+              <div style={{position:'fixed', inset:0, zIndex:998}} onClick={() => setMatrixPopup(null)} />
+              <div style={{position:'fixed', left:Math.max(8, Math.min(matrixPopup.x - 110, window.innerWidth - 248)), top:matrixPopup.y + 8, zIndex:999, background:'#fff', borderRadius:'10px', boxShadow:'0 8px 24px rgba(0,0,0,0.14)', padding:'14px 18px', minWidth:'220px', fontSize:'13px', color:'#333'}}>
+                <button style={{position:'absolute', top:'8px', right:'10px', background:'none', border:'none', cursor:'pointer', color:'#aaa', fontSize:'18px', lineHeight:1, padding:0}} onClick={() => setMatrixPopup(null)}>×</button>
+                <p style={{margin:'0 0 6px 0', fontWeight:'700', color:'#1a2332', fontSize:'14px', paddingRight:'20px'}}>{matrixPopup.school}</p>
+                <p style={{margin:'0 0 6px 0', color:'#555'}}>
+                  {PATHWAY_STRUCTURE[matrixPopup.pathwayKey].icon} {PATHWAY_STRUCTURE[matrixPopup.pathwayKey].label}
+                </p>
+                {matrixPopup.record.level_reached && (
+                  <p style={{margin:'0 0 6px 0', color:'#555'}}>
+                    <b>Level:</b> {PATHWAY_STRUCTURE[matrixPopup.pathwayKey].levels?.[matrixPopup.record.level_reached] || matrixPopup.record.level_reached}
+                  </p>
+                )}
+                <p style={{margin:'0 0 6px 0'}}>
+                  <span style={{background:matrixPopup.record.completed?'#eafaf1':'#fef9e7', color:matrixPopup.record.completed?'#1a8a4a':'#a0720a', fontSize:'11px', padding:'3px 10px', borderRadius:'999px', fontWeight:'600', display:'inline-block'}}>
+                    {matrixPopup.record.completed ? '✅ Completed' : '🔄 In Progress'}
+                  </span>
+                </p>
+                {matrixPopup.record.date_recorded && (
+                  <p style={{margin:0, color:'#8a96a3', fontSize:'12px'}}>
+                    {new Date(matrixPopup.record.date_recorded).toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'})}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </>)}
 
       {/* ── DETAIL TAB ────────────────────────────────────────────────────────── */}
       {activeTab === 'detail' && (
