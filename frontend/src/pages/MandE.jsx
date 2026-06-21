@@ -457,12 +457,13 @@ export default function MandE() {
           <label style={lbl}>School / Community Centre *</label>
           <select style={inp} value={form.school_id} onChange={e => {
             const schoolId = e.target.value;
-            // Auto-populate teacher from school's club leader
             const clubLeader = teachers.find(t => sameId(t.school_id, schoolId) && CLUB_LEADER_ROLES.includes(t.role));
+            const school = schools.find(s => sameId(s.id, schoolId));
             setForm(f => ({
               ...f,
               school_id: schoolId,
               teacher_id: clubLeader?.id ? String(clubLeader.id) : '',
+              mentor_id: school?.mentor_id ? String(school.mentor_id) : '',
             }));
           }}>
             <option value="">— Select school or centre —</option>
@@ -477,7 +478,7 @@ export default function MandE() {
             return (
               <div style={{marginTop:'6px', fontSize:'13px', color:'#1eb457', fontWeight:'600'}}>
                 📍 Visit #{visitCountForSchool + 1}
-                {school?.mentor_name && ` · 👤 Mentor: ${school.mentor_name}`}
+                {school?.mentor_name && ` · 👤 Usual mentor: ${school.mentor_name}`}
               </div>
             );
           })()}
