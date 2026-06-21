@@ -85,6 +85,7 @@ export default function Pathways() {
   const [showcaseStatus, setShowcaseStatus] = useState('all');
   const [matrixCounty, setMatrixCounty] = useState('');
   const [matrixPopup, setMatrixPopup] = useState(null);
+  const [matrixView, setMatrixView] = useState('matrix');
 
   const fetchProgress = () => api.get('/pathways').then(r => setProgress(r.data));
   const fetchSyllabus = () => api.get('/pathways/syllabus').then(r => setCustomPathways(r.data)).catch(() => {});
@@ -380,9 +381,23 @@ export default function Pathways() {
 
         {/* ── COVERAGE MATRIX ───────────────────────────────────────────────────── */}
         <div style={styles.section}>
-          <div style={{marginBottom:'16px'}}>
-            <p style={{...styles.sectionTitle, fontSize:'16px', margin:'0 0 4px 0'}}>🗺️ Pathway Coverage Matrix</p>
-            <p style={styles.sectionSub}>Which schools have started which pathways</p>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', flexWrap:'wrap', gap:'10px'}}>
+            <div>
+              <p style={{...styles.sectionTitle, fontSize:'16px', margin:'0 0 4px 0'}}>🗺️ Pathway Coverage Matrix</p>
+              <p style={styles.sectionSub}>Which schools have started which pathways</p>
+            </div>
+            <div style={{display:'flex', gap:'3px', background:'#f0f2f5', borderRadius:'8px', padding:'3px', flexShrink:0}}>
+              {[{key:'matrix',label:'🗺️ Matrix'},{key:'adoption',label:'📊 Adoption'}].map(({key,label}) => (
+                <button key={key} onClick={() => setMatrixView(key)}
+                  style={{padding:'6px 14px', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:'600',
+                    background:matrixView===key?'#fff':'transparent',
+                    color:matrixView===key?'#1a2332':'#8a96a3',
+                    boxShadow:matrixView===key?'0 1px 3px rgba(0,0,0,0.10)':'none',
+                    transition:'all 0.15s'}}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{display:'flex', gap:'10px', marginBottom:'16px', flexWrap:'wrap', alignItems:'center'}}>
             <select style={styles.filterSelect} value={matrixCounty} onChange={e => setMatrixCounty(e.target.value)}>
@@ -395,20 +410,22 @@ export default function Pathways() {
               <button style={styles.clearBtn} onClick={() => setMatrixCounty('')}>✕ Clear</button>
             )}
           </div>
-          {/* Legend */}
-          <div style={{display:'flex', gap:'18px', marginBottom:'12px', alignItems:'center', flexWrap:'wrap'}}>
-            {[
-              { color:'#1eb457', ring:'#eafaf1', label:'Completed' },
-              { color:'#F7941D', ring:'#fff5e6', label:'In Progress' },
-              { color:'#e2e8f0', ring:'none',    label:'Not Started' },
-            ].map(({ color, ring, label }) => (
-              <span key={label} style={{display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', color:'#666'}}>
-                <span style={{display:'inline-block', width:'11px', height:'11px', borderRadius:'50%', background:color, outline:ring !== 'none' ? `3px solid ${ring}` : 'none', flexShrink:0}} />
-                {label}
-              </span>
-            ))}
-          </div>
-          <div style={{overflowX:'auto', overflowY:'auto', maxHeight:'480px', borderRadius:'8px', border:'1px solid #e2e8f0'}}>
+          {/* Legend — matrix view only */}
+          {matrixView === 'matrix' && (
+            <div style={{display:'flex', gap:'18px', marginBottom:'12px', alignItems:'center', flexWrap:'wrap'}}>
+              {[
+                { color:'#1eb457', ring:'#eafaf1', label:'Completed' },
+                { color:'#F7941D', ring:'#fff5e6', label:'In Progress' },
+                { color:'#e2e8f0', ring:'none',    label:'Not Started' },
+              ].map(({ color, ring, label }) => (
+                <span key={label} style={{display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', color:'#666'}}>
+                  <span style={{display:'inline-block', width:'11px', height:'11px', borderRadius:'50%', background:color, outline:ring !== 'none' ? `3px solid ${ring}` : 'none', flexShrink:0}} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
+          {matrixView === 'matrix' && <div style={{overflowX:'auto', overflowY:'auto', maxHeight:'480px', borderRadius:'8px', border:'1px solid #e2e8f0'}}>
             <table style={{borderCollapse:'collapse', width:'100%', minWidth:'560px'}}>
               <thead>
                 <tr style={{background:'#f8f9fa', position:'sticky', top:0, zIndex:3}}>
@@ -468,7 +485,44 @@ export default function Pathways() {
                 })()}
               </tbody>
             </table>
-          </div>
+          </div>}
+
+          {matrixView === 'adoption' && (
+            <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
+              {(() => {
+                const filteredSchools = schools.filter(s => !matrixCounty || s.county === matrixCounty);
+                const total = filteredSchools.length;
+                const schoolIdSet = new Set(filteredSchools.map(s => String(s.id)));
+                return Object.keys(PATHWAY_STRUCTURE).map(key => {
+                  const pw = PATHWAY_STRUCTURE[key];
+                  const rows = progress.filter(p => p.pathway === key && schoolIdSet.has(String(p.school_id)));
+                  const started = new Set(rows.map(p => String(p.school_id))).size;
+                  const completed = new Set(rows.filter(p => p.completed).map(p => String(p.school_id))).size;
+                  const startedPct = total > 0 ? (started / total) * 100 : 0;
+                  const completedPct = total > 0 ? (completed / total) * 100 : 0;
+                  return (
+                    <div key={key}>
+                      <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px'}}>
+                        <span style={{fontSize:'18px'}}>{pw.icon}</span>
+                        <span style={{fontSize:'13px', fontWeight:'600', color:'#1a2332', flex:1}}>{pw.label}</span>
+                        <span style={{fontSize:'12px', color:'#8a96a3', whiteSpace:'nowrap'}}>
+                          {started} of {total} started · {completed} completed
+                        </span>
+                      </div>
+                      <div style={{height:'16px', borderRadius:'8px', background:'#e8ecf0', overflow:'hidden', position:'relative'}}>
+                        {started > 0 && (
+                          <div style={{position:'absolute', left:0, top:0, height:'100%', width:`${startedPct}%`, background:`${pw.color}55`, borderRadius:'8px'}} />
+                        )}
+                        {completed > 0 && (
+                          <div style={{position:'absolute', left:0, top:0, height:'100%', width:`${completedPct}%`, background:pw.color, borderRadius:'8px'}} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
 
           {matrixPopup && (
             <>
