@@ -141,15 +141,16 @@ router.post('/', requireAuth, async (req, res) => {
         const pathwayCode = pathwayMap[pathwayLabel];
 
         if (pathwayCode) {
+          const isCompleted = showcase_status === 'completed';
           await pool.query(
             `INSERT INTO pathway_progress
                (school_id, teacher_id, pathway, completed, date_recorded, started_at)
-             VALUES ($1, $2, $3, false, $4, NOW())
+             VALUES ($1, $2, $3, $4, $5, NOW())
              ON CONFLICT DO NOTHING`,
             [school_id, teacher_id || null, pathwayCode,
-             date_of_visit || new Date().toISOString().split('T')[0]]
+             isCompleted, date_of_visit || new Date().toISOString().split('T')[0]]
           );
-          console.log('Pathway auto-populate success:', pathwayCode);
+          console.log('Pathway progress updated:', pathwayCode, 'completed:', isCompleted);
         } else {
           console.error('Pathway mapping not found for label:', pathwayLabel);
         }
