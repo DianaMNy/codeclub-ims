@@ -4,6 +4,8 @@ const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { createObservationSchema, updateObservationSchema } = require('../schemas/observationSchemas');
 
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -66,7 +68,7 @@ router.get('/pathways-with-projects', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, validate(createObservationSchema), async (req, res) => {
   const { mentor_id: tokenMentorId, role } = req.user;
   try {
     const { school_id, mentor_id, teacher_id, date_of_visit, is_first_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, showcase_photo, showcase_status, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
@@ -187,7 +189,7 @@ router.post('/', requireAuth, async (req, res) => {
   } catch (err) { console.error('Create visit:', err.message); res.status(500).json({ error: err.message }); }
 });
 
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, validate(updateObservationSchema), async (req, res) => {
   try {
     const { date_of_visit, engagement_type, latitude, longitude, gps_raw, club_running, not_running_reason, activation_actions, club_day, time_band, device_count, total_learners, male_learners, female_learners, engagement_rating, pathway_id, scratch_level, creating_projects, project_id, project_notes, observations, phone_call_notes, challenges, club_leader_confidence, actions_agreed, recommended_star_club, star_club_reason, flag_school, flag_reason, next_visit_date, other_details } = req.body;
     const result = await pool.query(`UPDATE session_observations SET date_of_visit=$1, engagement_type=$2, latitude=$3, longitude=$4, gps_raw=$5, club_running=$6, not_running_reason=$7, activation_actions=$8, club_day=$9, time_band=$10, device_count=$11, total_learners=$12, male_learners=$13, female_learners=$14, engagement_rating=$15, pathway_id=$16, scratch_level=$17, creating_projects=$18, project_id=$19, project_notes=$20, observations=$21, phone_call_notes=$22, challenges=$23, club_leader_confidence=$24, actions_agreed=$25, recommended_star_club=$26, star_club_reason=$27, flag_school=$28, flag_reason=$29, next_visit_date=$30, other_details=$31 WHERE id=$32 RETURNING *`,

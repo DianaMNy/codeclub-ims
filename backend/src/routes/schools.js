@@ -6,6 +6,8 @@ const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { createSchoolSchema, updateSchoolSchema } = require('../schemas/schoolSchemas');
 
 // ── GET /api/schools ─────────────────────────────────────────
 // Returns all schools and community centres
@@ -77,7 +79,7 @@ router.get('/mentor/my-schools', requireAuth, async (req, res) => {
 
 // ── POST /api/schools ─────────────────────────────────────────
 // Create a new school — Admin only
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post('/', requireAuth, requireAdmin, validate(createSchoolSchema), async (req, res) => {
   try {
    const {
   club_id, official_name, type, county, subcounty_area,
@@ -112,7 +114,7 @@ RETURNING *
 
 // ── PUT /api/schools/:id ──────────────────────────────────────
 // Update a school — Admin only
-router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.put('/:id', requireAuth, requireAdmin, validate(updateSchoolSchema), async (req, res) => {
   try {
     const {
   club_id, official_name, type, county, subcounty_area,

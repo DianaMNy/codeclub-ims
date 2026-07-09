@@ -5,6 +5,8 @@ const pool = require('../db/index');
 const bcrypt = require('bcryptjs');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { createUserSchema, updateUserSchema } = require('../schemas/userSchemas');
 
 // Add teacher_id column if it doesn't exist yet
 pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id INTEGER`)
@@ -26,7 +28,7 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // POST /api/users — create user (admin only)
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post('/', requireAuth, requireAdmin, validate(createUserSchema), async (req, res) => {
   const { full_name, email, password, role, mentor_id, teacher_id } = req.body;
   if (!full_name || !email || !password || !role) {
     return res.status(400).json({ error: 'All fields required' });
@@ -47,7 +49,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // PUT /api/users/:id — edit user details (admin only)
-router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.put('/:id', requireAuth, requireAdmin, validate(updateUserSchema), async (req, res) => {
   const { id } = req.params;
   const { full_name, email, role, mentor_id } = req.body;
   if (!full_name || !email || !role) {

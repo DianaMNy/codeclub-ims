@@ -4,6 +4,8 @@ const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { createMandeObservationSchema } = require('../schemas/observationSchemas');
 
 // ── SESSION OBSERVATIONS ─────────────────────────────────────
 router.get('/observations', requireAuth, async (req, res) => {
@@ -22,7 +24,7 @@ router.get('/observations', requireAuth, async (req, res) => {
 });
 
 
-router.post('/observations', requireAuth, async (req, res) => {
+router.post('/observations', requireAuth, validate(createMandeObservationSchema), async (req, res) => {
   const {
     school_id, observation_date, observed_teacher,
     session_type, learner_count, session_quality,

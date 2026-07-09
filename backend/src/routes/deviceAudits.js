@@ -4,6 +4,8 @@ const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { createDeviceAuditSchema, updateDeviceAuditSchema } = require('../schemas/deviceAuditSchemas');
 
 let tableReady = false;
 
@@ -108,7 +110,7 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, validate(createDeviceAuditSchema), async (req, res) => {
   const {
     school_id, audit_date, device_type,
     total_devices, functioning_devices, faulty_devices, comments
@@ -150,7 +152,7 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, validate(updateDeviceAuditSchema), async (req, res) => {
   const { id } = req.params;
   const {
     school_id, audit_date, device_type,

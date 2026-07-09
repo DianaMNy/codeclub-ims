@@ -4,6 +4,8 @@ const router = express.Router();
 const pool = require('../db/index');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { createTeacherSchema, updateTeacherSchema } = require('../schemas/teacherSchemas');
 
 // GET /api/teachers
 router.get('/', requireAuth, async (req, res) => {
@@ -29,7 +31,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // POST /api/teachers
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post('/', requireAuth, requireAdmin, validate(createTeacherSchema), async (req, res) => {
   try {
     const { school_id, full_name, role, phone, email, ict_confidence,
             training_completed, safeguarding_done, survey_done } = req.body;
@@ -59,7 +61,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // PUT /api/teachers/:id
-router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
+router.put('/:id', requireAuth, requireAdmin, validate(updateTeacherSchema), async (req, res) => {
   try {
     const { school_id, full_name, role, phone, email, ict_confidence,
             training_completed, safeguarding_done, survey_done,

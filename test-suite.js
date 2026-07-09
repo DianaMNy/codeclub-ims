@@ -155,6 +155,7 @@ async function waitForServer() {
   printSection(1, 'AUTH');
 
   let wrongPasswordMessage = null;
+  let authToken = null;
 
   await runTest('Login success', async () => {
     const { status, json } = await post('/api/auth/login', { email: TEST_EMAIL, password: TEST_PASSWORD });
@@ -163,6 +164,7 @@ async function waitForServer() {
       json && typeof json.token === 'string' && json.token.length > 0,
       `expected a token in the response but got ${JSON.stringify(json)}`
     );
+    authToken = json.token;
   });
 
   await runTest('Login wrong password rejected', async () => {
@@ -252,6 +254,83 @@ async function waitForServer() {
     assert(status === 400, `expected 400 but got ${status}`);
     assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
     assertCleanBody(text);
+  });
+
+  // The tests below are authenticated (reuse the token from "Login success"
+  // above) and hit non-auth write routes (schools/visits/device-audits/
+  // users), so — unlike everything above — they do NOT touch
+  // /api/auth/login or /api/auth/forgot-password and do NOT consume any of
+  // the authLimiter budget Section 3 needs. Every payload here is invalid
+  // by construction (that's what's under test) and the Phase-2 validate()
+  // middleware runs before the handler, so nothing should ever reach the
+  // DB — each test still explicitly checks for a stray 2xx and fails loudly
+  // with the response body (which would carry a TEST-prefixed identifier)
+  // if the DB write wasn't actually blocked.
+  const authHeader = () => ({ Authorization: `Bearer ${authToken}` });
+
+  function assertNeverWritten(status, json, text) {
+    if (status >= 200 && status < 300) {
+      throw new Error(
+        `SECURITY: invalid payload unexpectedly returned ${status} and likely created a record — ` +
+        `response: ${JSON.stringify(json)}`
+      );
+    }
+    assert(status !== 500, `expected 400 but got 500 — server error on invalid input`);
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+  }
+
+  await runTest('Create school with missing required field → 400', async () => {
+    const { status, json, text } = await post('/api/schools', { type: 'school', county: 'Kiambu' }, authHeader());
+    assertNeverWritten(status, json, text);
+  });
+
+  await runTest('Create school with a 200KB string in a text field → 400', async () => {
+    const { status, json, text } = await post('/api/schools', {
+      official_name: 'TEST-huge-notes',
+      type: 'school',
+      county: 'Kiambu',
+      notes: 'a'.repeat(200 * 1024),
+    }, authHeader());
+    assertNeverWritten(status, json, text);
+  });
+
+  await runTest('Create session observation with invalid pathway value → 400', async () => {
+    const { status, json, text } = await post('/api/visits', {
+      school_id: '00000000-0000-4000-8000-000000000000',
+      date_of_visit: '2026-01-01',
+      pathway_id: 'basket_weaving',
+    }, authHeader());
+    assertNeverWritten(status, json, text);
+  });
+
+  await runTest('Create device audit with functioning_devices: -5 → 400', async () => {
+    const { status, json, text } = await post('/api/device-audits', {
+      school_id: 'TEST-fake-school',
+      device_type: 'TEST-laptop',
+      functioning_devices: -5,
+    }, authHeader());
+    assertNeverWritten(status, json, text);
+  });
+
+  await runTest('Create device audit with functioning_devices: "many" → 400', async () => {
+    const { status, json, text } = await post('/api/device-audits', {
+      school_id: 'TEST-fake-school',
+      device_type: 'TEST-laptop',
+      functioning_devices: 'many',
+    }, authHeader());
+    assertNeverWritten(status, json, text);
+  });
+
+  await runTest('Create user with role "superhacker" → 400', async () => {
+    const { status, json, text } = await post('/api/users', {
+      full_name: 'TEST-fake-user',
+      email: `TEST-fake-user-${Date.now()}@example.com`,
+      password: 'password123',
+      role: 'superhacker',
+    }, authHeader());
+    assertNeverWritten(status, json, text);
   });
 
   // ── Section 3: Rate limiting (must run LAST) ────────────
