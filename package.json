@@ -1,0 +1,13 @@
+{
+  "name": "codeclub-ims",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Code Club IMS — repo-root tooling (API test suite)",
+  "scripts": {
+    "test": "node test-suite.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express-rate-limit": "^8.5.2"
+  }
+}

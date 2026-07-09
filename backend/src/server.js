@@ -10,8 +10,16 @@ const express = require('express');
 // Import cors - allows frontend to talk to backend
 const cors = require('cors');
 
+// Import rate limiting - protects login from brute force / abuse
+const rateLimit = require('express-rate-limit');
+const { logAudit } = require('./utils/audit');
+
 // Create our app
 const app = express();
+
+// Railway sits behind a reverse proxy — trust its X-Forwarded-For header
+// so rate limiting (and req.ip generally) sees the real client IP.
+app.set('trust proxy', 1);
 
 // ── Tell the app what tools to use ──────────────────
 // Read JSON data from requests
@@ -23,7 +31,42 @@ app.use(cors({
   credentials: true,
 }));
 
+// ── Rate limiters ────────────────────────────────────
+// Strict limiter for login/forgot-password — only failed attempts count,
+// since successful logins from shared/CGNAT IPs (common on Kenyan mobile
+// carriers) must never contribute to blocking other users on the same IP.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: async (req, res) => {
+    try {
+      await logAudit(req, 'rate_limit_triggered', null, null, `Rate limit triggered on ${req.originalUrl} from ${req.ip}`);
+    } catch (err) {
+      console.error('Rate limit audit log error:', err.message);
+    }
+    res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
+  },
+});
+
+// General limiter for all other API traffic.
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  },
+});
+
+app.use('/api', generalLimiter);
+
 // Routes
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 // ── Our first route ───────────────────────────────────
