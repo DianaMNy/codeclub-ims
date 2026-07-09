@@ -9,12 +9,14 @@ const crypto = require('crypto');
 const { Resend } = require('resend');
 const pool = require('../db/index');
 const { logAudit } = require('../utils/audit');
+const { validate } = require('../middleware/validate');
+const { loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../schemas/authSchemas');
 
 // ── POST /api/auth/login ─────────────────────────────────────
 // Body: { email, password }
 // Returns: { token, user: { id, full_name, role, mentor_id } }
 
-router.post('/login', async (req, res) => {
+router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
 
   // 1. Basic validation
@@ -69,7 +71,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ── POST /api/auth/forgot-password ──────────────────────────
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', validate(forgotPasswordSchema), async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
@@ -182,7 +184,7 @@ router.get('/reset-password/:token', async (req, res) => {
 });
 
 // ── POST /api/auth/reset-password ───────────────────────────
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', validate(resetPasswordSchema), async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword) {
     return res.status(400).json({ error: 'Token and new password are required' });

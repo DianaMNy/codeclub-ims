@@ -83,6 +83,11 @@ function assert(cond, message) {
   if (!cond) throw new Error(message);
 }
 
+function assertCleanBody(text) {
+  assert(!/\bat\s+.+\(.+:\d+:\d+\)/.test(text), `response body appears to contain a stack trace`);
+  assert(!/[A-Za-z]:\\|\/(home|Users|src|node_modules)\//.test(text), `response body appears to leak an internal file path`);
+}
+
 async function runTest(name, fn) {
   try {
     await fn();
@@ -198,8 +203,59 @@ async function waitForServer() {
     assert(status === 401, `expected 401 but got ${status}`);
   });
 
-  // ── Section 2: Rate limiting (must run LAST) ────────────
-  printSection(2, 'RATE LIMITING');
+  // ── Section 2: Input validation ─────────────────────────
+  // Rate-limit budget: authLimiter (max=10/15min) is shared by IP across
+  // both /api/auth/login and /api/auth/forgot-password, and counts every
+  // non-2xx response — so every request in this section (all designed to
+  // fail with 400) eats into the same budget Section 3 needs intact.
+  // Section 1 already spent 2 failed logins. This section sends at most
+  // 4 more requests to /login and routes the rest to /forgot-password,
+  // keeping the running total well under 10 before Section 3 starts.
+  printSection(2, 'INPUT VALIDATION');
+
+  await runTest('Login with missing email field → 400', async () => {
+    const { status, json, text } = await post('/api/auth/login', { password: 'somePassword123' });
+    assert(status !== 500, `expected 400 but got 500 — server error on missing field`);
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+  });
+
+  await runTest('Login with email as an object → 400', async () => {
+    const { status, json, text } = await post('/api/auth/login', { email: { a: 1 }, password: 'x' });
+    assert(status !== 500, `expected 400 but got 500 — server error on malformed email type`);
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+  });
+
+  await runTest('Login with a 200KB password → 400', async () => {
+    const hugePassword = 'a'.repeat(200 * 1024);
+    const { status, json, text } = await post('/api/auth/login', { email: TEST_EMAIL, password: hugePassword });
+    assert(status !== 500, `expected 400 but got 500 — server error on oversized password`);
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+  });
+
+  await runTest('Login with invalid email format → 400', async () => {
+    const { status, json, text } = await post('/api/auth/login', { email: 'notanemail', password: 'somePassword123' });
+    assert(status !== 500, `expected 400 but got 500 — server error on invalid email format`);
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+  });
+
+  await runTest('Forgot-password with missing email → 400', async () => {
+    const { status, json, text } = await post('/api/auth/forgot-password', {});
+    assert(status !== 500, `expected 400 but got 500 — server error on missing field`);
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+  });
+
+  // ── Section 3: Rate limiting (must run LAST) ────────────
+  printSection(3, 'RATE LIMITING');
   console.log(
     `${c.yellow}⚠  Warning: this section sends repeated failed logins and will get this ` +
     `IP rate-limited for ~15 minutes once it trips.${c.reset}`
