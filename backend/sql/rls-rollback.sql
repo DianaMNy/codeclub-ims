@@ -1,0 +1,11 @@
+-- ROLLBACK: disables RLS on the 9 tables we enabled on 2026-07-09
+-- Run in Supabase SQL Editor ONLY if something breaks after enabling RLS
+ALTER TABLE audit_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE device_audits DISABLE ROW LEVEL SECURITY;
+ALTER TABLE ecosystem_extras DISABLE ROW LEVEL SECURITY;
+ALTER TABLE heads_of_school DISABLE ROW LEVEL SECURITY;
+ALTER TABLE password_reset_tokens DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pathways DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_submissions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE session_observations DISABLE ROW LEVEL SECURITY;

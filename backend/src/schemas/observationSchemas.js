@@ -24,11 +24,26 @@
 // validate for them. Only flag_school (bool) and flag_reason (text) are
 // user-supplied.
 const { z } = require('zod');
-const { longText, shortText, uuidField, requiredUuidField, looseBoolean } = require('./common');
+const { longText, shortText, uuidField, requiredUuidField, looseBoolean, optionalNumber } = require('./common');
 
-const latitude = () => z.coerce.number().min(-90).max(90).optional().nullable();
-const longitude = () => z.coerce.number().min(-180).max(180).optional().nullable();
-const nonNegInt = () => z.coerce.number().int().nonnegative().optional().nullable();
+const latitude = () => optionalNumber({ min: -90, max: 90 });
+const longitude = () => optionalNumber({ min: -180, max: 180 });
+const nonNegInt = () => optionalNumber({ min: 0, int: true });
+
+// engagement_rating is NOT a numeric 1-5 rating despite what its name
+// suggests — it's a free-text-ish enum. Confirmed in
+// frontend/src/pages/MandE.jsx: `const RATINGS = ['Very Active','Active',
+// 'Moderate','Low']`, rendered as a <select> whose value is one of those
+// four label strings (or '' if unselected). The original Phase-2 schema
+// treated it as numeric (`z.coerce.number()...`), which is what actually
+// caused the reported bug: selecting any real rating like "Very Active"
+// made `Number('Very Active')` produce NaN — the "" case only ever hit the
+// quieter bug of silently storing 0. routes/visits.js does
+// `engagement_rating||null`, so null is a safe value for this column.
+const engagementRating = () => z.preprocess(
+  (v) => (v === '' || v === undefined ? null : v),
+  z.enum(['Very Active', 'Active', 'Moderate', 'Low']).nullable().optional()
+);
 
 // ── routes/visits.js ─────────────────────────────────────────
 // POST /api/visits — school_id and date_of_visit are the only fields passed
@@ -55,7 +70,7 @@ const createObservationSchema = z.object({
   total_learners: nonNegInt(),
   male_learners: nonNegInt(),
   female_learners: nonNegInt(),
-  engagement_rating: nonNegInt(),
+  engagement_rating: engagementRating(),
   pathway_id: uuidField(),
   scratch_level: shortText(50).optional().nullable(),
   creating_projects: looseBoolean(),
@@ -96,7 +111,7 @@ const updateObservationSchema = z.object({
   total_learners: nonNegInt(),
   male_learners: nonNegInt(),
   female_learners: nonNegInt(),
-  engagement_rating: nonNegInt(),
+  engagement_rating: engagementRating(),
   pathway_id: uuidField(),
   scratch_level: shortText(50).optional().nullable(),
   creating_projects: looseBoolean(),
@@ -132,11 +147,11 @@ const createMandeObservationSchema = z.object({
   observation_notes: longText().optional().nullable(),
   follow_up_required: looseBoolean(),
   action_items: longText(2000).optional().nullable(),
-  quality_score: z.coerce.number().optional().nullable(),
-  engagement_score: z.coerce.number().optional().nullable(),
+  quality_score: optionalNumber(),
+  engagement_score: optionalNumber(),
   gps_lat: latitude(),
   gps_lng: longitude(),
-  gps_accuracy: z.coerce.number().nonnegative().optional().nullable(),
+  gps_accuracy: optionalNumber({ min: 0 }),
 }).strip();
 
 module.exports = { createObservationSchema, updateObservationSchema, createMandeObservationSchema };

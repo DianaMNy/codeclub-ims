@@ -305,6 +305,27 @@ async function waitForServer() {
     assertNeverWritten(status, json, text);
   });
 
+  await runTest('Session observation with engagement_rating: "" does not produce a NaN error → 400', async () => {
+    // engagement_rating: '' is what the frontend sends whenever the rating
+    // dropdown is left unselected — it must be silently accepted (treated
+    // as "not rated"), not rejected. Pair it with an unrelated invalid
+    // field (bad pathway_id, missing school_id) so the request still 400s
+    // overall without ever reaching the DB — the point of this test is
+    // narrowly that engagement_rating itself contributes no error and the
+    // response never mentions "NaN".
+    const { status, json, text } = await post('/api/visits', {
+      date_of_visit: '2026-01-01',
+      engagement_rating: '',
+      pathway_id: 'basket_weaving',
+    }, authHeader());
+    assert(!text.includes('NaN'), `response should never mention NaN for an empty engagement_rating — got: ${text}`);
+    assert(
+      !(json && json.details && json.details.some((d) => d.startsWith('engagement_rating'))),
+      `engagement_rating: "" should not itself produce a validation error — got details: ${JSON.stringify(json && json.details)}`
+    );
+    assertNeverWritten(status, json, text);
+  });
+
   await runTest('Create device audit with functioning_devices: -5 → 400', async () => {
     const { status, json, text } = await post('/api/device-audits', {
       school_id: 'TEST-fake-school',

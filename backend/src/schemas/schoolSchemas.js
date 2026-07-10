@@ -2,7 +2,7 @@
 // Field names, requiredness and enums verified against routes/schools.js
 // and the create/edit form in frontend/src/pages/Schools.jsx.
 const { z } = require('zod');
-const { emailField, phoneField, shortText, longText, uuidField, looseBoolean } = require('./common');
+const { emailField, phoneField, shortText, longText, uuidField, looseBoolean, optionalNumber } = require('./common');
 
 // createSchoolSchema mirrors POST /api/schools' destructured body.
 const createSchoolSchema = z.object({
@@ -17,7 +17,7 @@ const createSchoolSchema = z.object({
   club_leader_email: emailField().optional().nullable(),
   safeguarding_sponsor: shortText(200).optional().nullable(),
   sponsor_phone: phoneField(),
-  learner_count: z.coerce.number().int().nonnegative().optional().nullable(),
+  learner_count: optionalNumber({ min: 0, int: true }),
   status: z.enum(['enrolled', 'active', 'inactive']).optional().nullable(),
   guidelines_signed: looseBoolean(),
   notes: longText().optional().nullable(),
@@ -44,7 +44,7 @@ const updateSchoolSchema = z.object({
   club_leader_email: emailField().optional().nullable(),
   safeguarding_sponsor: shortText(200).optional().nullable(),
   sponsor_phone: phoneField(),
-  learner_count: z.coerce.number().int().nonnegative().optional().nullable(),
+  learner_count: optionalNumber({ min: 0, int: true }),
   status: z.enum(['enrolled', 'active', 'inactive']).optional().nullable(),
   guidelines_signed: looseBoolean(),
   notes: longText().optional().nullable(),
