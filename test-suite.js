@@ -13,7 +13,12 @@
  *   TEST_EMAIL=<email of a real, active user>
  *   TEST_PASSWORD=<that user's password>
  *
- * Section 2 (rate limiting) intentionally trips the login rate
+ * Optional (enables Section 3, DB SECURITY / RLS — skipped if absent):
+ *   SUPABASE_URL=<https://xxxx.supabase.co>
+ *   SUPABASE_ANON_KEY=<the project's anon/public API key — legacy JWT-style
+ *                       or new "sb_publishable_..." format, both work>
+ *
+ * Section 4 (rate limiting) intentionally trips the login rate
  * limiter and will get this machine's IP blocked for ~15 minutes —
  * run it last, and don't run the suite repeatedly back-to-back.
  *
@@ -29,6 +34,8 @@ if (!process.env.TEST_EMAIL || !process.env.TEST_PASSWORD) {
 
 const TEST_EMAIL = process.env.TEST_EMAIL;
 const TEST_PASSWORD = process.env.TEST_PASSWORD;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const TARGETS = {
   local: 'http://127.0.0.1:5000',
@@ -354,8 +361,92 @@ async function waitForServer() {
     assertNeverWritten(status, json, text);
   });
 
-  // ── Section 3: Rate limiting (must run LAST) ────────────
-  printSection(3, 'RATE LIMITING');
+  // ── Section 3: DB security (RLS) ────────────────────────
+  // These hit the Supabase REST API (PostgREST) directly, not our backend
+  // — so they're unrelated to and don't touch the authLimiter budget.
+  printSection(3, 'DB SECURITY (RLS)');
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.log(
+      `${c.yellow}  SKIPPED — set SUPABASE_URL and SUPABASE_ANON_KEY in .env to enable ` +
+      `(Supabase dashboard → Settings → API for this project).${c.reset}`
+    );
+  } else {
+    // Supabase is retiring legacy JWT-based API keys in favor of new-format
+    // publishable/secret keys (e.g. "sb_publishable_..."), which are opaque
+    // tokens, not JWTs — no decoding/inspection of the key happens here,
+    // just a plain prefix check. Legacy keys still work with both the
+    // apikey and Authorization: Bearer headers, but a non-JWT sb_ key sent
+    // as "Bearer <token>" risks PostgREST trying (and failing) to parse it
+    // as a JWT, so Authorization is only attached for the legacy format.
+    const isNewFormatKey = SUPABASE_ANON_KEY.startsWith('sb_');
+
+    const supabaseRequest = async (method, table, query, body) => {
+      const url = `${SUPABASE_URL}/rest/v1/${table}${query || ''}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+      };
+      if (!isNewFormatKey) {
+        headers.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+      }
+      let res;
+      try {
+        res = await fetch(url, {
+          method,
+          headers,
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+        });
+      } catch (err) {
+        throw new Error(`could not reach ${url} — ${err.message}`);
+      }
+      const text = await res.text();
+      let json = null;
+      try { json = JSON.parse(text); } catch { /* not JSON */ }
+      return { status: res.status, json, text };
+    };
+
+    const assertNoRowsExposed = async (table) => {
+      const { status, json, text } = await supabaseRequest('GET', table, '?select=*');
+      if (status === 401 || status === 403) return; // denied — RLS holding
+      assert(status === 200, `expected 401/403 (denied) or 200 with [] but got ${status} — ${text.slice(0, 200)}`);
+      assert(Array.isArray(json), `expected a JSON array for a 200 response but got ${JSON.stringify(json).slice(0, 200)}`);
+      assert(
+        json.length === 0,
+        `SECURITY: ${table} exposed ${json.length} row(s) to an anonymous request — ${JSON.stringify(json).slice(0, 300)}`
+      );
+    };
+
+    await runTest('Anonymous REST API cannot read users', async () => {
+      await assertNoRowsExposed('users');
+    });
+
+    await runTest('Anonymous REST API cannot read password_reset_tokens', async () => {
+      await assertNoRowsExposed('password_reset_tokens');
+    });
+
+    await runTest('Anonymous REST API cannot read chat_messages', async () => {
+      await assertNoRowsExposed('chat_messages');
+    });
+
+    await runTest('Anonymous REST API cannot insert into device_audits', async () => {
+      const { status, text } = await supabaseRequest('POST', 'device_audits', '', {
+        school_id: 'TEST-rls-check',
+        device_type: 'TEST-rls-junk',
+        total_devices: 0,
+      });
+      if (status >= 200 && status < 300) {
+        throw new Error(`SECURITY: anonymous insert into device_audits succeeded (${status}) — response: ${text.slice(0, 300)}`);
+      }
+      assert(
+        status === 401 || status === 403,
+        `expected 401 or 403 (denied) but got ${status} — ${text.slice(0, 200)}`
+      );
+    });
+  }
+
+  // ── Section 4: Rate limiting (must run LAST) ────────────
+  printSection(4, 'RATE LIMITING');
   console.log(
     `${c.yellow}⚠  Warning: this section sends repeated failed logins and will get this ` +
     `IP rate-limited for ~15 minutes once it trips.${c.reset}`
