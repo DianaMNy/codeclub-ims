@@ -20,6 +20,18 @@ const COUNTY_COLORS = { 'Kiambu':'#69A9C9', 'Kajiado':'#F7941D', "Murang'a":'#1e
 const ROLE_COLORS   = { admin:'#e74c3c', programme_coordinator:'#9b59b6', mentor:'#1eb457', teacher:'#69A9C9', county_official:'#F7941D' };
 const ROLE_LABELS   = { admin:'Admin', programme_coordinator:'Coordinator', mentor:'Mentor', teacher:'Club Leader', county_official:'County Official' };
 
+// Consistent subtle per-sender name color — hash sender_id to a small muted
+// palette so multi-person rooms stay scannable (distinct from ROLE_COLORS,
+// which stays on the role badge).
+const NAME_COLORS = ['#5b6b8c','#7d5ba6','#2e8b7a','#b8663f','#4a7fa7','#8a5c8a','#5a8f5a','#a06a3c'];
+function senderNameColor(id) {
+  if (!id) return NAME_COLORS[0];
+  let hash = 0;
+  const s = String(id);
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  return NAME_COLORS[Math.abs(hash) % NAME_COLORS.length];
+}
+
 function toRoomKey(county, subcounty) {
   return `${county}_${subcounty}`.replace(/[^a-zA-Z0-9_']/g, '_');
 }
@@ -295,7 +307,7 @@ export default function Chat() {
                   <div style={{maxWidth:'70%'}}>
                     {showAvatar && !isMe && (
                       <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px'}}>
-                        <span style={{fontSize:'13px', fontWeight:'700', color:'#1a2332'}}>{msg.sender_name}</span>
+                        <span style={{fontSize:'13px', fontWeight:'700', color:senderNameColor(msg.sender_id)}}>{msg.sender_name || 'Unknown'}</span>
                         <span style={{...S.badge, background:roleColor+'20', color:roleColor, fontSize:'10px'}}>
                           {ROLE_LABELS[msg.sender_role]||msg.sender_role}
                         </span>
