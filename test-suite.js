@@ -19,7 +19,7 @@
  *   SUPABASE_ANON_KEY=<the project's anon/public API key — legacy JWT-style
  *                       or new "sb_publishable_..." format, both work>
  *
- * Section 6 (rate limiting) intentionally trips the login rate
+ * Section 7 (rate limiting) intentionally trips the login rate
  * limiter and will get this machine's IP blocked for ~15 minutes —
  * run it last, and don't run the suite repeatedly back-to-back.
  *
@@ -133,7 +133,13 @@ async function request(method, urlPath, { body, raw, headers } = {}) {
   const text = await res.text();
   let json = null;
   try { json = JSON.parse(text); } catch { /* not JSON */ }
-  return { status: res.status, json, text, poweredBy: res.headers.get('x-powered-by') };
+  return {
+    status: res.status,
+    json,
+    text,
+    poweredBy: res.headers.get('x-powered-by'),
+    corsAllowOrigin: res.headers.get('access-control-allow-origin'),
+  };
 }
 
 const post = (urlPath, body, headers) => request('POST', urlPath, { body, headers });
@@ -530,8 +536,38 @@ async function waitForServer() {
     assert(!poweredBy, `expected no X-Powered-By header but got "${poweredBy}"`);
   });
 
-  // ── Section 6: Rate limiting (must run LAST) ────────────
-  printSection(6, 'RATE LIMITING');
+  // ── Section 6: CORS ──────────────────────────────────────
+  // GET-only requests against a real, harmless endpoint — no login
+  // attempts, so this section doesn't touch the authLimiter budget.
+  // server.js only allows localhost origins when NODE_ENV !== 'production',
+  // so asserting on localhost here would be environment-dependent (it'd
+  // pass against local but should FAIL against prod/standby, which aren't
+  // running with a dev NODE_ENV). Instead this tests the two invariants
+  // that hold true regardless of which target this suite points at: an
+  // arbitrary disallowed origin never gets CORS access, and the real
+  // production frontend origin always does.
+  printSection(6, 'CORS');
+
+  await runTest('Disallowed origin is not granted CORS access', async () => {
+    const { status, corsAllowOrigin } = await get('/api/health', { Origin: 'https://evil-example.com' });
+    assert(status === 200, `expected the request itself to still succeed (CORS is enforced by the browser, not the server) but got ${status}`);
+    assert(
+      corsAllowOrigin !== 'https://evil-example.com',
+      `expected the disallowed origin NOT to be echoed back in Access-Control-Allow-Origin, but got "${corsAllowOrigin}"`
+    );
+  });
+
+  await runTest('Production frontend origin is granted CORS access', async () => {
+    const { status, corsAllowOrigin } = await get('/api/health', { Origin: 'https://codeclub-ims.vercel.app' });
+    assert(status === 200, `expected 200 but got ${status}`);
+    assert(
+      corsAllowOrigin === 'https://codeclub-ims.vercel.app',
+      `expected Access-Control-Allow-Origin to echo the vercel origin but got "${corsAllowOrigin}"`
+    );
+  });
+
+  // ── Section 7: Rate limiting (must run LAST) ────────────
+  printSection(7, 'RATE LIMITING');
   console.log(
     `${c.yellow}⚠  Warning: this section sends repeated failed logins and will get this ` +
     `IP rate-limited for ~15 minutes once it trips.${c.reset}`

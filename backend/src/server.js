@@ -45,9 +45,23 @@ app.set('trust proxy', TRUST_PROXY_HOPS);
 app.use(express.json({ limit: '10mb' }));
 
 // Allow frontend to connect
+// Localhost origins are dev-only, gated on NODE_ENV — production requests
+// (Railway and the Render standby alike) only ever come from the deployed
+// Vercel frontend, so there's no reason to accept a localhost Origin
+// there. Both platforms run identical code from `main`, so this allowlist
+// must stay in sync across Railway + Render — hardening one and not the
+// other silently reintroduces the gap on whichever one lags behind.
+const isProd = process.env.NODE_ENV === 'production';
+const allowedOrigins = isProd
+  ? ['https://codeclub-ims.vercel.app']
+  : ['https://codeclub-ims.vercel.app', 'http://localhost:5173', 'http://localhost:3000'];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://codeclub-ims.vercel.app'],
-  credentials: true,
+  origin: allowedOrigins,
+  // credentials: true removed — nothing in this app uses cookies or sends
+  // withCredentials (auth is a JWT Bearer token in localStorage), so it
+  // was a no-op. Re-add only if cookie-based auth or a client that sets
+  // withCredentials/credentials:'include' is introduced.
 }));
 
 // ── Rate limiters ────────────────────────────────────
