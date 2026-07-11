@@ -17,6 +17,9 @@ const { logAudit } = require('./utils/audit');
 // Create our app
 const app = express();
 
+// Don't advertise the framework in responses
+app.disable('x-powered-by');
+
 // Railway sits behind a reverse proxy — trust its X-Forwarded-For header
 // so rate limiting (and req.ip generally) sees the real client IP.
 app.set('trust proxy', 1);
@@ -142,6 +145,39 @@ app.use('/api/projects-showcase', projectsShowcaseRoutes);
 
 const auditLogRoutes = require('./routes/audit_logs');
 app.use('/api/audit-logs', auditLogRoutes);
+
+// ── 404 — no route matched ────────────────────────────
+app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+
+// ── Global error handler (must be last, 4-arg signature) ─────
+// Every route already catches its own errors and responds directly, so in
+// normal operation this is a safety net, not the primary error path — it
+// mainly exists for errors thrown before any route runs, like express.json()
+// failing to parse a malformed body (previously surfaced as body-parser's
+// default HTML error page, complete with a stack trace and file paths).
+app.use((err, req, res, next) => {
+  console.error(`[ERROR] ${req.method} ${req.originalUrl}:`, err.stack);
+
+  // Malformed JSON body — express.json() throws this before any route
+  // handler runs.
+  const isBodyParseError =
+    err.type === 'entity.parse.failed' ||
+    (err instanceof SyntaxError && err.status === 400 && 'body' in err);
+  if (isBodyParseError) {
+    return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+
+  const status = err.status || err.statusCode;
+  if (status && status >= 400 && status < 500) {
+    // Only echo the message back if it's a known, safe one — never forward
+    // an arbitrary err.message to the client.
+    const SAFE_MESSAGES = new Set(['request entity too large', 'Payload Too Large']);
+    const message = SAFE_MESSAGES.has(err.message) ? err.message : 'Bad request';
+    return res.status(status).json({ error: message });
+  }
+
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // ── Start the server ──────────────────────────────────
 const PORT = process.env.PORT || 5000;

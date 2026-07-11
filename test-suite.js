@@ -18,7 +18,7 @@
  *   SUPABASE_ANON_KEY=<the project's anon/public API key — legacy JWT-style
  *                       or new "sb_publishable_..." format, both work>
  *
- * Section 4 (rate limiting) intentionally trips the login rate
+ * Section 6 (rate limiting) intentionally trips the login rate
  * limiter and will get this machine's IP blocked for ~15 minutes —
  * run it last, and don't run the suite repeatedly back-to-back.
  *
@@ -108,12 +108,15 @@ async function runTest(name, fn) {
 
 // ── HTTP helpers ────────────────────────────────────────────
 
-async function request(method, urlPath, { body, headers } = {}) {
+async function request(method, urlPath, { body, raw, headers } = {}) {
   const url = `${BASE_URL}${urlPath}`;
   const options = {
     method,
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    // `raw` sends a literal string body unstringified — needed to send
+    // deliberately-malformed JSON, which JSON.stringify(body) could never
+    // produce since it only ever emits valid JSON.
+    body: raw !== undefined ? raw : (body !== undefined ? JSON.stringify(body) : undefined),
   };
   let res;
   try {
@@ -128,7 +131,7 @@ async function request(method, urlPath, { body, headers } = {}) {
   const text = await res.text();
   let json = null;
   try { json = JSON.parse(text); } catch { /* not JSON */ }
-  return { status: res.status, json, text };
+  return { status: res.status, json, text, poweredBy: res.headers.get('x-powered-by') };
 }
 
 const post = (urlPath, body, headers) => request('POST', urlPath, { body, headers });
@@ -445,8 +448,88 @@ async function waitForServer() {
     });
   }
 
-  // ── Section 4: Rate limiting (must run LAST) ────────────
-  printSection(4, 'RATE LIMITING');
+  // ── Section 4: Performance ──────────────────────────────
+  // Catching regressions, not micro-benchmarking — 2000ms is deliberately
+  // generous because prod runs Kenya-to-EU (Railway/Supabase Stockholm)
+  // over variable 4G. A single sample on that path is noisy enough to
+  // false-alarm on its own (observed 1.1s-5s for the same unchanged route
+  // across separate runs), so each test takes up to 3 sequential attempts
+  // and passes on the first one under threshold (best-of-3), stopping as
+  // soon as one lands. A genuine regression (N+1, giant payload) is slow
+  // in a way that doesn't depend on network jitter, so it fails all 3
+  // consistently — only transient noise gets the retries. Status is
+  // checked on every attempt regardless (a wrong status is a real bug,
+  // not jitter, and fails immediately without burning more attempts).
+  printSection(4, 'PERFORMANCE');
+
+  const PERF_THRESHOLD_MS = 2000;
+  const PERF_MAX_ATTEMPTS = 3;
+
+  const timedGet = async (urlPath, headers) => {
+    const start = performance.now();
+    const result = await get(urlPath, headers);
+    const ms = Math.round(performance.now() - start);
+    return { ...result, ms };
+  };
+
+  const runTimedGet = async (name, urlPath) => {
+    const attempts = [];
+    await runTest(name, async () => {
+      for (let i = 1; i <= PERF_MAX_ATTEMPTS; i++) {
+        const result = await timedGet(urlPath, authHeader());
+        attempts.push(result.ms); // record timing before the status assert can throw
+        assert(result.status === 200, `expected 200 but got ${result.status} (attempt ${i})`);
+        if (result.ms < PERF_THRESHOLD_MS) break; // stop early on first pass
+      }
+      const best = Math.min(...attempts);
+      assert(
+        best < PERF_THRESHOLD_MS,
+        `all ${attempts.length} attempt(s) exceeded ${PERF_THRESHOLD_MS}ms: ${attempts.join(', ')}ms`
+      );
+    });
+    if (attempts.length > 0) {
+      const best = Math.min(...attempts);
+      console.log(`${c.dim}      (best ${best}ms of ${attempts.length}: ${attempts.join(', ')})${c.reset}`);
+    }
+  };
+
+  await runTimedGet('GET /api/schools responds within 2000ms', '/api/schools');
+  await runTimedGet('GET /api/teachers responds within 2000ms', '/api/teachers');
+  await runTimedGet('GET /api/visits (session observations) responds within 2000ms', '/api/visits');
+  await runTimedGet('GET /api/audit-logs responds within 2000ms', '/api/audit-logs');
+
+  // ── Section 5: Error responses ──────────────────────────
+  // Both tests here hit a non-auth route with the existing auth token
+  // rather than /api/auth/login — sending malformed JSON to a route body-
+  // parser rejects before any handler runs works identically on any route,
+  // and this way neither test touches /api/auth/login or
+  // /api/auth/forgot-password, so — like Section 4 — this section spends
+  // nothing from the authLimiter budget Section 6 needs intact.
+  printSection(5, 'ERROR RESPONSES');
+
+  await runTest('Malformed JSON body → clean 400, not the body-parser HTML page', async () => {
+    const { status, json, text, poweredBy } = await request('POST', '/api/schools', {
+      raw: '{bad json',
+      headers: authHeader(),
+    });
+    assert(status === 400, `expected 400 but got ${status}`);
+    assert(!text.trim().startsWith('<'), `expected a JSON response but got HTML: ${text.slice(0, 120)}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+    assert(!poweredBy, `expected no X-Powered-By header but got "${poweredBy}"`);
+  });
+
+  await runTest('GET nonexistent route → clean 404 JSON, not HTML', async () => {
+    const { status, json, text, poweredBy } = await get('/api/route-that-does-not-exist', authHeader());
+    assert(status === 404, `expected 404 but got ${status}`);
+    assert(!text.trim().startsWith('<'), `expected a JSON response but got HTML: ${text.slice(0, 120)}`);
+    assert(json && typeof json.error === 'string', `expected a JSON error field but got ${JSON.stringify(json)}`);
+    assertCleanBody(text);
+    assert(!poweredBy, `expected no X-Powered-By header but got "${poweredBy}"`);
+  });
+
+  // ── Section 6: Rate limiting (must run LAST) ────────────
+  printSection(6, 'RATE LIMITING');
   console.log(
     `${c.yellow}⚠  Warning: this section sends repeated failed logins and will get this ` +
     `IP rate-limited for ~15 minutes once it trips.${c.reset}`

@@ -10,9 +10,16 @@ const { createTeacherSchema, updateTeacherSchema } = require('../schemas/teacher
 // GET /api/teachers
 router.get('/', requireAuth, async (req, res) => {
   try {
+    // Explicit column list (not t.*) — excludes created_at, which nothing in
+    // the frontend reads (verified against every page that consumes this
+    // endpoint). Every other teachers column is used by Teachers.jsx's edit
+    // form, which — like schools — populates straight from this list
+    // response with no separate detail fetch.
     const result = await pool.query(`
-      SELECT 
-        t.*,
+      SELECT
+        t.id, t.school_id, t.full_name, t.role, t.phone, t.email, t.ict_confidence,
+        t.training_completed, t.safeguarding_done, t.safeguarding_date, t.training_date,
+        t.survey_done,
         sc.official_name AS school_name,
         sc.county,
         sc.subcounty_area,

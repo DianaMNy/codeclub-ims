@@ -14,9 +14,18 @@ const { createSchoolSchema, updateSchoolSchema } = require('../schemas/schoolSch
 // Protected — must be logged in
 router.get('/', requireAuth, async (req, res) => {
   try {
+    // Explicit column list (not sc.*) — excludes hos_phone/hos_email/created_at,
+    // which nothing in the frontend reads (verified against every page that
+    // consumes this endpoint). notes stays: Schools.jsx's edit modal populates
+    // its form straight from this list response (no separate detail fetch),
+    // so dropping notes here would blank it out on every edit-save.
     const result = await pool.query(`
-      SELECT 
-        sc.*,
+      SELECT
+        sc.id, sc.club_id, sc.official_name, sc.type, sc.county, sc.subcounty_area,
+        sc.referral_source, sc.club_leader_name, sc.club_leader_phone, sc.club_leader_email,
+        sc.safeguarding_sponsor, sc.sponsor_phone, sc.learner_count, sc.status,
+        sc.guidelines_signed, sc.notes, sc.mentor_id, sc.enrollment_date, sc.cohort,
+        sc.hos_name,
         m.full_name AS mentor_name
       FROM schools_and_centres sc
       LEFT JOIN mentors m ON sc.mentor_id = m.id
