@@ -47,7 +47,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     const token = jwt.sign(
       { id: user.id, role: user.role, mentor_id: user.mentor_id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '24h' }
     );
 
     // 5. Send back token + safe user info (never send password_hash!)

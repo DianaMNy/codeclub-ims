@@ -17,7 +17,6 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const { loginUser } = useAuth();
   const navigate = useNavigate();
 
@@ -257,17 +256,6 @@ export default function Login() {
                     </button>
                   </div>
                 </div>
-
-                {/* Keep me logged in */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}>
-                  <input
-                    type="checkbox"
-                    checked={keepLoggedIn}
-                    onChange={(e) => setKeepLoggedIn(e.target.checked)}
-                    style={{ width: '16px', height: '16px', accentColor: '#00658d', cursor: 'pointer' }}
-                  />
-                  <span style={{ fontSize: '14px', color: '#4b5563' }}>Keep me logged in</span>
-                </label>
 
                 {/* Error message */}
                 {error && (
