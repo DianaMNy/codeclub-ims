@@ -162,20 +162,6 @@ app.use('/api/projects-showcase', projectsShowcaseRoutes);
 const auditLogRoutes = require('./routes/audit_logs');
 app.use('/api/audit-logs', auditLogRoutes);
 
-// TEMP DEBUG - remove after proxy diagnosis
-// No auth — exposes no secrets, only how Express resolved this request's
-// proxy chain, so we can set TRUST_PROXY_HOPS precisely instead of
-// guessing (guessing too high opens an IP-spoofing hole).
-app.get('/api/debug-ip', (req, res) => {
-  res.json({
-    ip: req.ip,
-    ips: req.ips,
-    xForwardedFor: req.headers['x-forwarded-for'] || null,
-    trustProxySetting: req.app.get('trust proxy'),
-    socketRemote: req.socket.remoteAddress,
-  });
-});
-
 // ── 404 — no route matched ────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
