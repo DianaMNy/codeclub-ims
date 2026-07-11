@@ -4,6 +4,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api/index';
 import { useAuth } from '../context/AuthContext';
 
+// Set by src/api/authInterceptor.js right before it redirects here on a
+// 401 from an expired/invalid token. Read once, outside React state, so
+// checking it doesn't need an effect (and the extra render that'd cause).
+function readAndClearSessionExpiredFlag() {
+  if (sessionStorage.getItem('sessionExpired')) {
+    sessionStorage.removeItem('sessionExpired');
+    return 'Your session expired, please log in again.';
+  }
+  return '';
+}
+
 const CODE_LINES = [
   { tokens: [{ text: 'function ', color: '#f472b6' }, { text: 'empower', color: '#fb923c' }, { text: '(learner) {', color: '#e2e8f0' }] },
   { tokens: [{ text: '  const ', color: '#f472b6' }, { text: 'skills', color: '#e2e8f0' }, { text: ' = [', color: '#e2e8f0' }, { text: '"logic"', color: '#fde68a' }, { text: ', ', color: '#e2e8f0' }, { text: '"creativity"', color: '#fde68a' }, { text: ', ', color: '#e2e8f0' }, { text: '"impact"', color: '#fde68a' }, { text: '];', color: '#e2e8f0' }] },
@@ -14,7 +25,7 @@ const CODE_LINES = [
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(readAndClearSessionExpiredFlag);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { loginUser } = useAuth();
