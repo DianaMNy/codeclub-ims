@@ -6,8 +6,9 @@
  * backend API and prints a terminal PASS/FAIL report.
  *
  * Usage:
- *   node test-suite.js local   → tests http://localhost:5000 (default)
- *   node test-suite.js prod    → tests https://codeclub-ims-production.up.railway.app
+ *   node test-suite.js local     → tests http://localhost:5000 (default)
+ *   node test-suite.js prod      → tests https://codeclub-ims-production.up.railway.app
+ *   node test-suite.js standby   → tests https://codeclub-ims.onrender.com
  *
  * Requires (repo root .env, or backend/.env as a fallback):
  *   TEST_EMAIL=<email of a real, active user>
@@ -40,6 +41,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const TARGETS = {
   local: 'http://127.0.0.1:5000',
   prod: 'https://codeclub-ims-production.up.railway.app',
+  standby: 'https://codeclub-ims.onrender.com',
 };
 
 const targetArg = (process.argv[2] || 'local').toLowerCase();
@@ -56,7 +58,7 @@ const c = {
 };
 
 if (!BASE_URL) {
-  console.error(`Unknown target "${targetArg}". Use "local" or "prod" (or omit for local).`);
+  console.error(`Unknown target "${targetArg}". Use "local", "prod", or "standby" (or omit for local).`);
   process.exit(1);
 }
 

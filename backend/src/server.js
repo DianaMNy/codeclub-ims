@@ -20,9 +20,25 @@ const app = express();
 // Don't advertise the framework in responses
 app.disable('x-powered-by');
 
-// Railway sits behind a reverse proxy — trust its X-Forwarded-For header
-// so rate limiting (and req.ip generally) sees the real client IP.
-app.set('trust proxy', 1);
+// How many reverse-proxy hops sit in front of this app varies by host:
+// Railway is 1 hop, but the Render standby deployment sits behind BOTH
+// Cloudflare and Render's own proxy — 2 hops. `trust proxy` must match the
+// real hop count exactly, or req.ip (what express-rate-limit keys on)
+// stops being the actual client IP: under-count and it resolves to an
+// intermediate proxy's IP instead, which per-IP rate limiting can't use to
+// tell different clients apart correctly (this is exactly what broke the
+// login limiter on the Render standby — verified it let all 15 failed
+// logins through with no 429, because trust proxy 1 there was one hop
+// short of the real Cloudflare+Render chain). We deliberately never set
+// this to `true` (trust everything) — express-rate-limit's own docs warn
+// that blanket-trusting turns X-Forwarded-For into a client-spoofable
+// header, defeating the limiter entirely. TRUST_PROXY_HOPS lets each
+// platform declare its own correct count via env var; unset defaults to 1,
+// so Railway's existing (already-correct) behavior is unchanged.
+// (`|| 1` would be wrong here — it'd override a deliberate TRUST_PROXY_HOPS=0.)
+const parsedTrustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS, 10);
+const TRUST_PROXY_HOPS = Number.isNaN(parsedTrustProxyHops) ? 1 : parsedTrustProxyHops;
+app.set('trust proxy', TRUST_PROXY_HOPS);
 
 // ── Tell the app what tools to use ──────────────────
 // Read JSON data from requests
