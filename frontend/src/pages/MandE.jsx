@@ -138,7 +138,6 @@ export default function MandE() {
   const [teachers, setTeachers]   = useState([]);
   const [mentors, setMentors]     = useState([]);
   const [deviceAudits, setDeviceAudits] = useState([]);
-  const [loading, setLoading]     = useState(true);
   const [auditLoading, setAuditLoading] = useState(true);
   const [view, setView]           = useState('list'); // 'list' | 'form' | 'history'
   const [editId, setEditId]       = useState(null);
@@ -154,17 +153,43 @@ export default function MandE() {
   const [auditFilterSchool, setAuditFilterSchool] = useState('');
   const [search, setSearch]               = useState('');
   const [auditSearch, setAuditSearch] = useState('');
+  const [visitsPage, setVisitsPage]             = useState(1);
+  const [visitsTotalPages, setVisitsTotalPages] = useState(1);
+  const [visitsLoading, setVisitsLoading]       = useState(true);
+  // Computed server-side (independent of page/limit) so these stay accurate
+  // no matter which page is showing — see backend/src/routes/visits.js.
+  const [visitsStats, setVisitsStats] = useState({
+    totalVisits: 0, physicalVisits: 0, clubRunning: 0, flagged: 0, totalLearners: 0,
+  });
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => { loadData(); }, []);
 
+  // GET /api/visits is paginated — kept separate from the Promise.allSettled
+  // batch below so Prev/Next only re-fetches this one endpoint, not every
+  // resource on the page.
+  const loadVisits = async (page = 1) => {
+    setVisitsLoading(true);
+    try {
+      const res = await api.get(`/visits?page=${page}&limit=50`);
+      const body = res.data || {};
+      setVisits(Array.isArray(body.data) ? body.data : []);
+      setVisitsPage(body.page || 1);
+      setVisitsTotalPages(body.totalPages || 1);
+      setVisitsStats(body.stats || { totalVisits: 0, physicalVisits: 0, clubRunning: 0, flagged: 0, totalLearners: 0 });
+    } catch (e) {
+      console.error('Failed to load visits:', e);
+      setVisits([]);
+    } finally {
+      setVisitsLoading(false);
+    }
+  };
+
   const loadData = async () => {
-    setLoading(true);
     setAuditLoading(true);
     try {
-      const [s, v, t, p, a, m] = await Promise.allSettled([
+      const [s, t, p, a, m] = await Promise.allSettled([
         api.get('/schools'),
-        api.get('/visits'),
         api.get('/teachers'),
         fetchPathwayOptions(),
         api.get('/device-audits'),
@@ -172,9 +197,6 @@ export default function MandE() {
       ]);
       if (s.status === 'fulfilled') setSchools(Array.isArray(s.value.data) ? s.value.data : []);
       else console.error('Failed to load schools:', s.reason);
-
-      if (v.status === 'fulfilled') setVisits(Array.isArray(v.value.data) ? v.value.data : []);
-      else console.error('Failed to load visits:', v.reason);
 
       if (t.status === 'fulfilled') setTeachers(Array.isArray(t.value.data) ? t.value.data : []);
       else console.error('Failed to load teachers:', t.reason);
@@ -187,8 +209,10 @@ export default function MandE() {
 
       if (m.status === 'fulfilled') setMentors(Array.isArray(m.value.data) ? m.value.data : []);
       else console.error('Failed to load mentors:', m.reason);
+
+      await loadVisits(1);
     } catch(e) { console.error(e); }
-    finally { setLoading(false); setAuditLoading(false); }
+    finally { setAuditLoading(false); }
   };
 
   // Single update function — key to preventing re-render issues
@@ -198,7 +222,22 @@ export default function MandE() {
   const selectedPathwayLevels = getPathwayLevels(selPathway);
   const selectedPathwayProjects = getPathwayProjects(selPathway);
 
-  const visitCountForSchool = visits.filter(v => sameId(v.school_id, form.school_id)).length;
+  // visits now only holds the current page, so this can't be a client-side
+  // filter over it anymore — fetch the school's full (unpaginated) visit
+  // history instead, same endpoint openHistory() already uses below. The
+  // "no school selected" case is handled as a plain derived value below
+  // rather than a setState call inside the effect, so the effect body only
+  // ever sets state from the async callbacks, never synchronously.
+  const [fetchedVisitCount, setFetchedVisitCount] = useState(0);
+  useEffect(() => {
+    if (!form.school_id) return;
+    let cancelled = false;
+    api.get(`/visits/school/${form.school_id}`)
+      .then(r => { if (!cancelled) setFetchedVisitCount(Array.isArray(r.data) ? r.data.length : 0); })
+      .catch(() => { if (!cancelled) setFetchedVisitCount(0); });
+    return () => { cancelled = true; };
+  }, [form.school_id]);
+  const visitCountForSchool = form.school_id ? fetchedVisitCount : 0;
 
   const openAdd = () => {
     setForm({ ...INIT, date_of_visit: new Date().toISOString().split('T')[0] });
@@ -371,10 +410,13 @@ export default function MandE() {
 
   const selectedAuditSchool = schools.find(s => sameId(s.id, auditForm.school_id));
 
-  const TV=visits.length, PV=visits.filter(v=>v.engagement_type==='Physical Visit').length;
-  const CR=visits.filter(v=>v.club_running).length;
-  const FL=visits.filter(v=>v.flag_school||!v.club_running).length;
-  const TL=visits.reduce((s,v)=>s+(parseInt(v.total_learners)||0),0);
+  // From visitsStats (server-computed across ALL pages) — visits itself only
+  // holds the current page, so filtering/reducing it here would only
+  // reflect that page.
+  const TV=visitsStats.totalVisits, PV=visitsStats.physicalVisits;
+  const CR=visitsStats.clubRunning;
+  const FL=visitsStats.flagged;
+  const TL=visitsStats.totalLearners;
   const DA=deviceAudits.length;
   const DT=deviceAudits.reduce((s,a)=>s+(parseInt(a.total_devices)||0),0);
   const DF=deviceAudits.reduce((s,a)=>s+(parseInt(a.functioning_devices)||0),0);
@@ -944,9 +986,11 @@ export default function MandE() {
         <div style={{background:'#fff',borderRadius:'12px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',overflow:'hidden'}}>
           <div style={{padding:'20px 24px',borderBottom:'1px solid #f0f0f0'}}>
             <p style={{fontSize:'15px',fontWeight:'600',color:'#1a2332',margin:'0 0 4px'}}>Session observations — RPF 2026</p>
-            <p style={{fontSize:'12px',color:'#8a96a3',margin:0}}>{filtered.length} of {visits.length} observations</p>
+            <p style={{fontSize:'12px',color:'#8a96a3',margin:0}}>
+              {filtered.length} of {visits.length} shown on this page · {visitsStats.totalVisits} total observations
+            </p>
           </div>
-          {loading?<p style={{color:'#888',padding:'20px'}}>Loading...</p>:(
+          {visitsLoading?<p style={{color:'#888',padding:'20px'}}>Loading...</p>:(
             filtered.length === 0
               ? <p style={{color:'#888',textAlign:'center',padding:'40px'}}>No observations yet. Click "Record New Observation" to start! 📝</p>
               : filtered.map((v,i)=>(
@@ -981,6 +1025,23 @@ export default function MandE() {
                   </div>
                 </div>
               ))
+          )}
+          {visitsTotalPages > 1 && (
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderTop:'1px solid #f0f0f0',gap:'12px',flexWrap:'wrap'}}>
+              <button
+                style={{padding:'10px 18px',borderRadius:'8px',border:'1.5px solid #e2e8f0',minHeight:'44px',fontSize:'14px',fontWeight:'600',
+                  background:visitsPage<=1||visitsLoading?'#f8f9fa':'#fff',color:visitsPage<=1||visitsLoading?'#c0c0c0':'#333',cursor:visitsPage<=1||visitsLoading?'default':'pointer'}}
+                onClick={()=>loadVisits(visitsPage-1)}
+                disabled={visitsPage<=1||visitsLoading}
+              >← Prev</button>
+              <span style={{fontSize:'13px',color:'#555',fontWeight:'600'}}>Page {visitsPage} of {visitsTotalPages}</span>
+              <button
+                style={{padding:'10px 18px',borderRadius:'8px',border:'1.5px solid #e2e8f0',minHeight:'44px',fontSize:'14px',fontWeight:'600',
+                  background:visitsPage>=visitsTotalPages||visitsLoading?'#f8f9fa':'#fff',color:visitsPage>=visitsTotalPages||visitsLoading?'#c0c0c0':'#333',cursor:visitsPage>=visitsTotalPages||visitsLoading?'default':'pointer'}}
+                onClick={()=>loadVisits(visitsPage+1)}
+                disabled={visitsPage>=visitsTotalPages||visitsLoading}
+              >Next →</button>
+            </div>
           )}
         </div>
       </>)}

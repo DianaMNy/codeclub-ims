@@ -19,7 +19,7 @@
  *   SUPABASE_ANON_KEY=<the project's anon/public API key — legacy JWT-style
  *                       or new "sb_publishable_..." format, both work>
  *
- * Section 7 (rate limiting) intentionally trips the login rate
+ * Section 8 (rate limiting) intentionally trips the login rate
  * limiter and will get this machine's IP blocked for ~15 minutes —
  * run it last, and don't run the suite repeatedly back-to-back.
  *
@@ -566,8 +566,24 @@ async function waitForServer() {
     );
   });
 
-  // ── Section 7: Rate limiting (must run LAST) ────────────
-  printSection(7, 'RATE LIMITING');
+  // ── Section 7: Pagination ────────────────────────────────
+  // GET-only, authenticated, non-auth route — doesn't touch the
+  // authLimiter budget Section 8 needs.
+  printSection(7, 'PAGINATION');
+
+  await runTest('GET /api/visits?page=1&limit=5 returns a paginated shape', async () => {
+    const { status, json } = await get('/api/visits?page=1&limit=5', authHeader());
+    assert(status === 200, `expected 200 but got ${status}`);
+    assert(Array.isArray(json?.data), `expected a data array but got ${JSON.stringify(json)}`);
+    assert(json.data.length <= 5, `expected at most 5 rows but got ${json.data.length}`);
+    assert(typeof json.page === 'number', `expected a numeric page field but got ${JSON.stringify(json.page)}`);
+    assert(typeof json.limit === 'number', `expected a numeric limit field but got ${JSON.stringify(json.limit)}`);
+    assert(typeof json.total === 'number', `expected a numeric total field but got ${JSON.stringify(json.total)}`);
+    assert(typeof json.totalPages === 'number', `expected a numeric totalPages field but got ${JSON.stringify(json.totalPages)}`);
+  });
+
+  // ── Section 8: Rate limiting (must run LAST) ────────────
+  printSection(8, 'RATE LIMITING');
   console.log(
     `${c.yellow}⚠  Warning: this section sends repeated failed logins and will get this ` +
     `IP rate-limited for ~15 minutes once it trips.${c.reset}`

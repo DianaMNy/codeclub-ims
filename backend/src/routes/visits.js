@@ -10,16 +10,69 @@ const { createObservationSchema, updateObservationSchema } = require('../schemas
 router.get('/', requireAuth, async (req, res) => {
   try {
     const { role, mentor_id } = req.user;
-    let query, params;
-    if (role === 'admin' || role === 'programme_coordinator') {
-      query = `SELECT so.*, sc.official_name AS school_name, sc.club_id, sc.county, sc.type AS school_type, m.full_name AS mentor_name, p.label AS pathway_name, p.icon AS pathway_icon FROM session_observations so LEFT JOIN schools_and_centres sc ON so.school_id = sc.id LEFT JOIN mentors m ON so.mentor_id = m.id LEFT JOIN pathways p ON so.pathway_id = p.id ORDER BY so.date_of_visit DESC`;
-      params = [];
-    } else {
-      query = `SELECT so.*, sc.official_name AS school_name, sc.club_id, sc.county, sc.type AS school_type, m.full_name AS mentor_name, p.label AS pathway_name, p.icon AS pathway_icon FROM session_observations so LEFT JOIN schools_and_centres sc ON so.school_id = sc.id LEFT JOIN mentors m ON so.mentor_id = m.id LEFT JOIN pathways p ON so.pathway_id = p.id WHERE so.mentor_id = $1 ORDER BY so.date_of_visit DESC`;
-      params = [mentor_id];
-    }
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    const isAdmin = role === 'admin' || role === 'programme_coordinator';
+    const whereClause = isAdmin ? '' : 'WHERE so.mentor_id = $1';
+    const roleParams = isAdmin ? [] : [mentor_id];
+
+    // page defaults to 1, limit defaults to 50 and is clamped to 100 — any
+    // missing/non-numeric/out-of-range value just falls back to the default
+    // rather than erroring, so existing callers that pass nothing still work.
+    let page = parseInt(req.query.page, 10);
+    if (!Number.isInteger(page) || page < 1) page = 1;
+    let limit = parseInt(req.query.limit, 10);
+    if (!Number.isInteger(limit) || limit < 1) limit = 50;
+    if (limit > 100) limit = 100;
+    const offset = (page - 1) * limit;
+
+    const dataQuery = `
+      SELECT so.*, sc.official_name AS school_name, sc.club_id, sc.county, sc.type AS school_type,
+             m.full_name AS mentor_name, p.label AS pathway_name, p.icon AS pathway_icon
+      FROM session_observations so
+      LEFT JOIN schools_and_centres sc ON so.school_id = sc.id
+      LEFT JOIN mentors m ON so.mentor_id = m.id
+      LEFT JOIN pathways p ON so.pathway_id = p.id
+      ${whereClause}
+      ORDER BY so.date_of_visit DESC
+      LIMIT $${roleParams.length + 1} OFFSET $${roleParams.length + 2}
+    `;
+
+    // Stats are computed independently of LIMIT/OFFSET (same WHERE scope as
+    // the page query) so the M&E dashboard's stat cards stay accurate no
+    // matter which page is showing — MandE.jsx used to compute these by
+    // filtering the full (unpaginated) array client-side.
+    const statsQuery = `
+      SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE so.engagement_type = 'Physical Visit') AS physical_visits,
+        COUNT(*) FILTER (WHERE so.club_running IS TRUE) AS club_running_count,
+        COUNT(*) FILTER (WHERE so.flag_school IS TRUE OR so.club_running IS NOT TRUE) AS flagged_count,
+        COALESCE(SUM(so.total_learners), 0) AS total_learners
+      FROM session_observations so
+      ${whereClause}
+    `;
+
+    const [dataResult, statsResult] = await Promise.all([
+      pool.query(dataQuery, [...roleParams, limit, offset]),
+      pool.query(statsQuery, roleParams),
+    ]);
+
+    const total = parseInt(statsResult.rows[0].total, 10);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    res.json({
+      data: dataResult.rows,
+      page,
+      limit,
+      total,
+      totalPages,
+      stats: {
+        totalVisits: total,
+        physicalVisits: parseInt(statsResult.rows[0].physical_visits, 10),
+        clubRunning: parseInt(statsResult.rows[0].club_running_count, 10),
+        flagged: parseInt(statsResult.rows[0].flagged_count, 10),
+        totalLearners: parseInt(statsResult.rows[0].total_learners, 10),
+      },
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
