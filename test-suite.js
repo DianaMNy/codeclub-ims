@@ -323,23 +323,45 @@ async function waitForServer() {
     assertNeverWritten(status, json, text);
   });
 
-  await runTest('Session observation with engagement_rating: "" does not produce a NaN error → 400', async () => {
-    // engagement_rating: '' is what the frontend sends whenever the rating
-    // dropdown is left unselected — it must be silently accepted (treated
-    // as "not rated"), not rejected. Pair it with an unrelated invalid
-    // field (bad pathway_id, missing school_id) so the request still 400s
-    // overall without ever reaching the DB — the point of this test is
-    // narrowly that engagement_rating itself contributes no error and the
-    // response never mentions "NaN".
+  await runTest('Session observation with engagement_rating: "" returns a clean 400 naming the field, no NaN → 400', async () => {
+    // engagement_rating used to be optional/nullable, so '' (what the
+    // frontend sends whenever the rating dropdown is left unselected) was
+    // silently accepted. The M&E conditional-validation change made
+    // engagement_rating (and most other observation fields) required, so ''
+    // now correctly 400s — the original bug this test guarded against
+    // (Number('') / Number('Very Active') producing an unhandled "NaN" in
+    // the response) is still the thing under test, just re-expressed: every
+    // OTHER required field is filled with a realistic valid value so
+    // engagement_rating is the one deliberately-invalid field, and the
+    // assertion is that the 400 cleanly names engagement_rating with no raw
+    // "NaN" text leaking into the response. Because validate() runs before
+    // the handler, this never reaches the DB regardless of how "valid" the
+    // rest of the payload is — no row is created either way.
     const { status, json, text } = await post('/api/visits', {
+      school_id: '00000000-0000-4000-8000-000000000001',
       date_of_visit: '2026-01-01',
+      engagement_type: 'Physical Visit',
+      latitude: -1.2921,
+      longitude: 36.8219,
+      club_running: true,
+      club_day: 'Monday',
+      time_band: '2PM - 4PM',
+      total_learners: 10,
+      male_learners: 5,
+      female_learners: 5,
       engagement_rating: '',
-      pathway_id: 'basket_weaving',
+      pathway_id: '00000000-0000-4000-8000-000000000002',
+      observations: 'TEST — routine session observation',
+      challenges: 'None',
+      club_leader_confidence: 'Confident',
+      creating_projects: false,
+      recommended_star_club: false,
+      flag_school: false,
     }, authHeader());
     assert(!text.includes('NaN'), `response should never mention NaN for an empty engagement_rating — got: ${text}`);
     assert(
-      !(json && json.details && json.details.some((d) => d.startsWith('engagement_rating'))),
-      `engagement_rating: "" should not itself produce a validation error — got details: ${JSON.stringify(json && json.details)}`
+      json && json.details && json.details.some((d) => d.startsWith('engagement_rating')),
+      `expected the 400 to specifically flag engagement_rating as invalid — got details: ${JSON.stringify(json && json.details)}`
     );
     assertNeverWritten(status, json, text);
   });

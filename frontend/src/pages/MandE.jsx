@@ -290,8 +290,43 @@ export default function MandE() {
   };
 
   const handleSave = async () => {
+    // Always required
     if (!form.school_id) return alert('Please select a school or centre');
     if (!form.date_of_visit) return alert('Date of visit is required');
+    // latitude/longitude are compared against '' rather than falsy — 0 is a
+    // real GPS reading (schools near the equator), not a blank value.
+    if (form.latitude === '' || form.longitude === '') return alert('GPS location is required — tap "Tap to capture GPS location"');
+    if (!form.engagement_type) return alert('Type of engagement is required');
+    if (!form.club_day) return alert('Day Code Club is conducted is required');
+    if (!form.time_band) return alert('Time band is required');
+    if (!form.total_learners) return alert('Total learners is required');
+    if (!form.male_learners) return alert('Male learners is required');
+    if (!form.female_learners) return alert('Female learners is required');
+    if (!form.engagement_rating) return alert('Learner engagement rating is required');
+    if (!form.pathway_id) return alert('Pathway being followed is required');
+    if (!form.observations) return alert('Observations are required');
+    if (!form.challenges) return alert('Challenges observed / faced is required');
+    if (!form.club_leader_confidence) return alert("Club leader's confidence level is required");
+
+    // Conditional on toggles
+    if (form.club_running === 'no') {
+      if (!form.not_running_reason) return alert('Main reason club not running is required');
+      if (!form.activation_actions) return alert('Actions to activate the club are required');
+    }
+    if (form.engagement_type === 'Phone Call' && !form.phone_call_notes) {
+      return alert('Phone call notes are required for a phone call engagement');
+    }
+    if (form.creating_projects === 'yes') {
+      if (!form.project_name) return alert('Please select which project learners are creating');
+      if (!form.project_notes) return alert('Project notes / description is required');
+    }
+    if (form.recommended_star_club === 'yes' && !form.star_club_reason) {
+      return alert('Reason for Star Club recommendation is required');
+    }
+    if (form.flag_school === 'yes' && !form.flag_reason) {
+      return alert('Flag reason is required');
+    }
+
     setSaving(true);
     const payload = {
       ...form,
@@ -680,7 +715,7 @@ export default function MandE() {
             </select>
           </div>
           <div>
-            <label style={lbl}>GPS Location</label>
+            <label style={lbl}>GPS Location *</label>
             <button style={{...inp,background:form.latitude?'#eafaf1':'#f8f9fa',color:form.latitude?'#1a8a4a':'#555',cursor:'pointer',textAlign:'left'}}
               onClick={captureGPS}>
               {form.latitude && form.longitude
@@ -704,11 +739,11 @@ export default function MandE() {
 
         {form.club_running === 'no' && (<>
           <div style={row}>
-            <label style={lbl}>Main reason club not running</label>
+            <label style={lbl}>Main reason club not running *</label>
             <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.not_running_reason} onChange={upd('not_running_reason')} placeholder="What is the main reason the club is not running?"/>
           </div>
           <div style={row}>
-            <label style={lbl}>Actions to activate the club</label>
+            <label style={lbl}>Actions to activate the club *</label>
             <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.activation_actions} onChange={upd('activation_actions')} placeholder="What steps will activate the club?"/>
           </div>
         </>)}
@@ -717,14 +752,14 @@ export default function MandE() {
         <div style={sec}>🗓️ Section 3 — Session Schedule</div>
         <div style={row2}>
           <div>
-            <label style={lbl}>Day Code Club is conducted</label>
+            <label style={lbl}>Day Code Club is conducted *</label>
             <select style={inp} value={form.club_day} onChange={upd('club_day')}>
               <option value="">— Select day —</option>
               {DAYS.map(d=><option key={d} value={d}>{d}</option>)}
             </select>
           </div>
           <div>
-            <label style={lbl}>Time band</label>
+            <label style={lbl}>Time band *</label>
             <input style={inp} value={form.time_band} onChange={upd('time_band')} placeholder="e.g. 2PM - 4PM"/>
           </div>
         </div>
@@ -733,19 +768,19 @@ export default function MandE() {
         <div style={sec}>👥 Section 4 — Learners</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'12px',marginBottom:'16px'}}>
           <div>
-            <label style={lbl}>Total learners</label>
+            <label style={lbl}>Total learners *</label>
             <input style={inp} type="number" value={form.total_learners} onChange={upd('total_learners')} placeholder="0"/>
           </div>
           <div>
-            <label style={lbl}>Male learners</label>
+            <label style={lbl}>Male learners *</label>
             <input style={inp} type="number" value={form.male_learners} onChange={upd('male_learners')} placeholder="0"/>
           </div>
           <div>
-            <label style={lbl}>Female learners</label>
+            <label style={lbl}>Female learners *</label>
             <input style={inp} type="number" value={form.female_learners} onChange={upd('female_learners')} placeholder="0"/>
           </div>
           <div>
-            <label style={lbl}>Learner engagement rating</label>
+            <label style={lbl}>Learner engagement rating *</label>
             <select style={inp} value={form.engagement_rating} onChange={upd('engagement_rating')}>
               <option value="">— Select rating —</option>
               {RATINGS.map(r=><option key={r} value={r}>{r}</option>)}
@@ -756,7 +791,7 @@ export default function MandE() {
         {/* S5 — Learning */}
         <div style={sec}>📚 Section 5 — Learning Progress</div>
         <div style={row}>
-          <label style={lbl}>Pathway being followed</label>
+          <label style={lbl}>Pathway being followed *</label>
           <select style={inp} value={form.pathway_id} onChange={e=>setForm(f=>({...f,pathway_id:e.target.value,scratch_level:'',project_name:''}))}>
             <option value="">— Select pathway —</option>
             {pathways.map(p=>(
@@ -790,7 +825,7 @@ export default function MandE() {
         </div>
         {form.creating_projects === 'yes' && (<>
           <div style={row}>
-            <label style={lbl}>Which project?</label>
+            <label style={lbl}>Which project? *</label>
             <select style={inp} value={form.project_name} onChange={upd('project_name')}>
               <option value="">— Select project —</option>
               {selectedPathwayProjects.map(project => (
@@ -800,7 +835,7 @@ export default function MandE() {
             </select>
           </div>
           <div style={row}>
-            <label style={lbl}>Project notes / description</label>
+            <label style={lbl}>Project notes / description *</label>
             <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.project_notes} onChange={upd('project_notes')} placeholder="Describe the project..."/>
           </div>
 
@@ -853,19 +888,19 @@ export default function MandE() {
         {/* S6 — Observations */}
         <div style={sec}>👁️ Section 6 — Observations</div>
         <div style={row}>
-          <label style={lbl}>What was done / observations during the session?</label>
+          <label style={lbl}>What was done / observations during the session? *</label>
           <textarea style={{...inp,height:'100px',resize:'vertical'}} value={form.observations} onChange={upd('observations')} placeholder="Describe what happened during the session..."/>
         </div>
         <div style={row}>
-          <label style={lbl}>If phone call — what was discussed?</label>
+          <label style={lbl}>If phone call — what was discussed? *</label>
           <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.phone_call_notes} onChange={upd('phone_call_notes')} placeholder="What was discussed during the call..."/>
         </div>
         <div style={row}>
-          <label style={lbl}>Challenges observed / faced</label>
+          <label style={lbl}>Challenges observed / faced *</label>
           <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.challenges} onChange={upd('challenges')} placeholder="Any challenges or obstacles..."/>
         </div>
         <div style={row}>
-          <label style={lbl}>Club leader's confidence level</label>
+          <label style={lbl}>Club leader's confidence level *</label>
           <select style={inp} value={form.club_leader_confidence} onChange={upd('club_leader_confidence')}>
             <option value="">— Select confidence level —</option>
             {CONFIDENCE.map(c=><option key={c} value={c}>{c}</option>)}
@@ -895,7 +930,7 @@ export default function MandE() {
         </div>
         {form.recommended_star_club === 'yes' && (
           <div style={row}>
-            <label style={lbl}>Why recommend for Star Club?</label>
+            <label style={lbl}>Why recommend for Star Club? *</label>
             <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.star_club_reason} onChange={upd('star_club_reason')} placeholder="Reason for Star Club nomination..."/>
           </div>
         )}
@@ -912,7 +947,7 @@ export default function MandE() {
         </div>
         {form.flag_school === 'yes' && (
           <div style={row}>
-            <label style={lbl}>Flag reason</label>
+            <label style={lbl}>Flag reason *</label>
             <textarea style={{...inp,height:'80px',resize:'vertical'}} value={form.flag_reason} onChange={upd('flag_reason')} placeholder="Reason for flagging..."/>
           </div>
         )}

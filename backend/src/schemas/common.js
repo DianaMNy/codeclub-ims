@@ -39,6 +39,28 @@ const optionalNumber = ({ min, max, int = false } = {}) => {
   return z.preprocess(emptyToNull, schema.nullable().optional());
 };
 
+// Same shape as optionalNumber, but '' / missing fail as "required" instead
+// of silently becoming null — for number-ish fields where a real zero and a
+// blank are different values (e.g. total_learners: 0 learners attended vs.
+// nobody recorded a count).
+//
+// `label` names the field in the error message. Without it, z.coerce.number()
+// on a blank/missing value reports the coercion mechanics rather than the
+// problem ("Invalid input: expected number, received NaN" — blank strings
+// and unparsable text both coerce to NaN via Number(), so that message fires
+// for "not filled in" too, not just genuinely malformed input). Passing
+// `label` swaps that for "<label> is required" via zod's `error` option,
+// which — confirmed against the installed zod v4.4.3 — DOES see the
+// pre-coercion value here (unlike the concern noted on
+// requiredPositiveIntId() below); min/max-violation messages are untouched.
+const requiredNumber = ({ min, max, int = false, label = 'This field' } = {}) => {
+  let schema = z.coerce.number({ error: `${label} is required` });
+  if (int) schema = schema.int();
+  if (min !== undefined) schema = schema.min(min);
+  if (max !== undefined) schema = schema.max(max);
+  return z.preprocess(emptyToUndefined, schema);
+};
+
 // This app is on Supabase: schools_and_centres, mentors, teachers, users and
 // pathways all use UUID primary keys (verified live via each GET endpoint),
 // NOT integers — so FK fields referencing them are validated as UUID
@@ -78,10 +100,20 @@ const requiredUuidField = () => z.preprocess(emptyToUndefined, z.string().trim()
 // — validate the shape without transforming, so handler comparisons still work.
 const looseBoolean = () => z.union([z.boolean(), z.enum(['true', 'false'])]).optional().nullable();
 
+// Same shape as looseBoolean(), but the toggle must be explicitly answered
+// (missing/'' is rejected) rather than silently passing through unset.
+// `message` replaces the default invalid-union wording (which lists both
+// branches of the union — boolean and 'true'/'false' — and isn't something
+// an end user should ever see) with a plain "<field> is required" line.
+const requiredLooseBoolean = (message = 'This field is required') => z.preprocess(
+  (v) => (v === '' ? undefined : v),
+  z.union([z.boolean(), z.enum(['true', 'false'])], { error: message })
+);
+
 module.exports = {
   emailField, phoneField, shortText, longText,
-  optionalNumber,
+  optionalNumber, requiredNumber,
   positiveIntId, requiredPositiveIntId,
   uuidField, requiredUuidField,
-  looseBoolean,
+  looseBoolean, requiredLooseBoolean,
 };
